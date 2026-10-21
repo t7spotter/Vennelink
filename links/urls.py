@@ -20,6 +20,10 @@ urlpatterns = [
     path("dashboard/links/<str:code>/analytics/", analytics_views.link_analytics, name="link_analytics"),
     path("dashboard/links/<str:code>/analytics.csv", analytics_views.link_analytics_csv, name="link_analytics_csv"),
     path("stats/<str:code>", analytics_views.public_stats, name="public_stats"),
+    # Docs pages (human-level API & MCP reference pages). Two segments, so
+    # they cannot collide with the single-segment catch-all below.
+    path("docs/api/", views.docs_api, name="docs_api"),
+    path("docs/mcp/", views.docs_mcp, name="docs_mcp"),
     # QR for a short code. Must stay above the catch-all redirect route.
     re_path(r"^(?P<code>[a-z0-9][a-z0-9-]{1,30})\.qr\.svg$", views.link_qr, name="link_qr"),
     # This must stay last: it is the catch-all public redirect route.

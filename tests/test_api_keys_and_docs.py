@@ -186,3 +186,42 @@ def test_raw_schema_lists_token_endpoint(api):
     # Meta endpoints stay out of the contract.
     assert "/api/docs/" not in schema["paths"]
     assert "/api/schema/" not in schema["paths"]
+
+
+# ---- Human-level docs pages (landing-linked) ---------------------------------
+
+
+def test_landing_links_to_both_doc_pages(client, db):
+    response = client.get("/")
+    body = response.content.decode()
+    assert 'href="/docs/api/"' in body
+    assert 'href="/docs/mcp/"' in body
+
+
+def test_api_docs_page_renders_the_real_surface(client, db):
+    response = client.get("/docs/api/")
+    assert response.status_code == 200
+    text = response.content.decode()
+    # Key facts a hand-rolled client needs, kept in sync with the code.
+    assert "/api/v1/token/" in text   # key exchange
+    assert "Bearer" in text          # both spellings documented
+    assert "/api/v1/links/{code}/" in text
+    assert "/api/docs/" in text      # machine-readable portal pointer
+    # Cross-link to the MCP page.
+    assert 'href="/docs/mcp/"' in text
+
+
+def test_mcp_docs_page_lists_tools_from_the_server(client, db):
+    from links.mcp import TOOLS
+
+    response = client.get("/docs/mcp/")
+    assert response.status_code == 200
+    text = response.content.decode()
+    assert "/mcp/" in text
+    assert "mcpServers" in text      # client config snippet
+    # Every tool the server exposes must appear on the page (and vice versa:
+    # a tool added without docs fails this).
+    for tool in TOOLS:
+        assert tool["name"] in text
+    # Cross-link back to the REST reference.
+    assert 'href="/docs/api/"' in text

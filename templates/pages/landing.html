@@ -16,6 +16,8 @@
           <i data-lucide="moon-star" class="h-4 w-4"></i>
           <span data-theme-label class="hidden sm:inline">System</span>
         </button>
+        <a href="{% url 'docs_api' %}" class="rt-nav-link hidden sm:inline">API</a>
+        <a href="{% url 'docs_mcp' %}" class="rt-nav-link hidden sm:inline">MCP</a>
         <a href="{% url 'login' %}" class="rt-nav-link">Log in</a>
         <a href="{% url 'register' %}" class="rt-btn rt-btn-sm rt-btn-primary">Create account</a>
       </nav>
@@ -119,6 +121,8 @@
         Self-hosted analytics may include bots. Click counts are not unique visitors.
       </p>
       <div class="flex items-center gap-4 body-sm text-ink-soft">
+        <a href="{% url 'docs_api' %}" class="hover:underline">API</a>
+        <a href="{% url 'docs_mcp' %}" class="hover:underline">MCP</a>
         <a href="{% url 'login' %}" class="hover:underline">Log in</a>
         <a href="{% url 'register' %}" class="hover:underline">Register</a>
       </div>

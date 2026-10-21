@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}MCP server — Retie{% endblock %}
+
+{% block body %}
+<div class="mx-auto max-w-2xl px-4 py-12">
+  <a href="{% if LANDING_ENABLED %}{% url 'landing' %}{% else %}{% url 'dashboard' %}{% endif %}"
+     class="rt-btn rt-btn-quiet -ml-3 mb-6">
+    <i data-lucide="arrow-left" class="h-4 w-4"></i> Back to landing
+  </a>
+
+  <div class="rt-card is-raised">
+    <div class="flex items-start justify-between gap-4">
+      <h1 class="heading text-ink">MCP server</h1>
+      <span class="rt-tag rt-tag-violet">tools</span>
+    </div>
+    <p class="body-sm mt-2 text-ink-soft">
+      Agents (Claude Desktop, Claude Code, Cursor, OpenCode, …) can manage your
+      links over the <a class="text-violet-ink hover:underline"
+      href="https://modelcontextprotocol.io">Model Context Protocol</a>. One
+      endpoint speaks JSON-RPC 2.0 over HTTP — no stdio process, no extra
+      dependencies. It reuses the REST API's keys, so an agent acts as exactly
+      one user and can be cut off instantly by revoking its key.
+    </p>
+
+    <!-- ── Endpoint ────────────────────────────────────────────────── -->
+    <h2 class="subheading mt-8 text-ink">Endpoint</h2>
+    <pre class="rt-code mt-3">{{ SITE_URL }}/mcp/</pre>
+    <p class="body-sm mt-2 text-ink-soft">
+      Stateless Streamable HTTP: send every JSON-RPC message as a
+      <code class="mono">POST</code>; there is no session to open and no SSE
+      stream. Requests without a valid key answer
+      <code class="mono">401</code>.
+    </p>
+
+    <!-- ── Auth ────────────────────────────────────────────────────── -->
+    <h2 class="subheading mt-8 text-ink">Authentication</h2>
+    <p class="body-sm mt-2 text-ink-soft">
+      Same keys as the REST API — exchange your password once
+      (<code class="mono">POST /api/v1/token/</code>), then send the key as a
+      header. Revoke it on the profile page and every MCP session goes dark
+      with it.
+    </p>
+    <pre class="rt-code mt-3"><code>Authorization: Bearer &lt;api key&gt;</code></pre>
+
+    <!-- ── Connect a client ────────────────────────────────────────── -->
+    <h2 class="subheading mt-8 text-ink">Connect a client</h2>
+    <p class="body-sm mt-2 text-ink-soft">
+      Add this server to your client's config (the shape below works for
+      Claude Desktop/Claude Code, Cursor and OpenCode):
+    </p>
+    <pre class="rt-code mt-3"><code>{
+  "mcpServers": {
+    "retie": {
+      "url": "{{ SITE_URL }}/mcp/",
+      "headers": {
+        "Authorization": "Bearer &lt;api key&gt;"
+      }
+    }
+  }
+}</code></pre>
+
+    <!-- ── Tools ───────────────────────────────────────────────────── -->
+    <h2 class="subheading mt-8 text-ink">Tools</h2>
+    <p class="body-sm mt-2 text-ink-soft">
+      Seven tools cover everything the dashboard can do; each one returns
+      JSON text. Ask for <code class="mono">tools/list</code> to get the full
+      input schemas.
+    </p>
+    <div class="mt-3 flex flex-col">
+      {% for tool in tools %}
+      <div class="border-b border-line/60 py-2 last:border-0">
+        <div class="flex items-baseline gap-2">
+          <span class="mono-sm text-violet-ink">{{ tool.name }}</span>
+          <span class="body-sm text-ink-soft">{{ tool.description }}</span>
+        </div>
+        {% if tool.args %}
+        <p class="mono-sm mt-0.5 text-ink-faint">
+          {{ tool.args }}
+        </p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- ── Example ─────────────────────────────────────────────────── -->
+    <h2 class="subheading mt-8 text-ink">Try it by hand</h2>
+    <p class="body-sm mt-2 text-ink-soft">
+      Any MCP client bootstraps with <code class="mono">initialize</code>, then
+      calls tools. The same works from curl:
+    </p>
+    <pre class="rt-code mt-3"><code>curl -X POST {{ SITE_URL }}/mcp/ \
+  -H "Authorization: Bearer $RETIE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+       "params": {"name": "create_link",
+                  "arguments": {"destination": "https://example.com/article"}}}'
+
+# → {"jsonrpc": "2.0", "id": 1,
+#    "result": {"content": [{"type": "text",
+#      "text": "{\"code\": \"k3mQx9\", \"short_url\": \"…/k3mQx9\", …}"}]}}</code></pre>
+
+    <!-- ── Errors ──────────────────────────────────────────────────── -->
+    <div class="rt-notice rt-notice-info mt-8">
+      <i data-lucide="info" class="rt-notice-icon h-4 w-4"></i>
+      <div class="rt-notice-body">
+        <p class="rt-notice-title">Bad input is not a crash</p>
+        <p class="rt-notice-text">
+          Validation problems come back as an
+          <code class="mono">isError</code> tool result with a readable
+          message — only an unknown method or malformed JSON is a JSON-RPC
+          protocol error. Link analytics go back at most 90 days per call.
+        </p>
+      </div>
+    </div>
+
+    <p class="body-sm mt-6 text-ink-soft">
+      Building your own client instead? The underlying
+      <a class="text-violet-ink hover:underline" href="{% url 'docs_api' %}">REST API reference →</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

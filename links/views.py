@@ -72,6 +72,39 @@ def landing(request):
     )
 
 
+def _mcp_tool_summaries():
+    """Per-tool facts for the MCP docs page: name, description, and the
+    tool's input properties with required ones first. Sourced from the
+    server's own TOOLS metadata so the page cannot drift from the server."""
+    from .mcp import TOOLS  # function scope: keeps the view import graph light
+
+    summaries = []
+    for tool in TOOLS:
+        schema = tool.get("inputSchema") or {}
+        required = list(schema.get("required") or [])
+        optional = [n for n in (schema.get("properties") or {}) if n not in required]
+        summaries.append(
+            {
+                "name": tool["name"],
+                "description": tool["description"],
+                "args": " · ".join([*required, *optional]),
+            }
+        )
+    return summaries
+
+
+def docs_api(request):
+    """Human overview of the REST API. The machine-readable reference lives
+    in the docs portal (/api/docs/) and the raw spec at /api/schema/."""
+    return render(request, "pages/docs_api.html")
+
+
+def docs_mcp(request):
+    """How agents connect: endpoint, key auth, client config, and the tools
+    the /mcp/ server exposes."""
+    return render(request, "pages/docs_mcp.html", {"tools": _mcp_tool_summaries()})
+
+
 def rate_limited(scope: str, limit: int, window_seconds: int, key=None):
     """Decorator: cap requests per time window using Django's cache.
 

@@ -297,8 +297,7 @@
   .rt-field.is-invalid .rt-input { border-color: var(--danger); }
   .rt-field-hint, .rt-field-error { margin: 0; display: block; font-size: 13px; line-height: 18px; color: var(--ink-soft); }
   /* Django password validators arrive as a helptext <ul>; keep it on the hint scale. */
-  .rt-field-hint ul { margin: var(--space-1) 0 0; padding: 0; list-style: none; }
-  .rt-field-error { color: var(--danger); font-weight: 500; }
+  .rt-field-hint ul { margin: var(--space-1) 0 0; padding: 0; list-style: none; }  .rt-field-error { color: var(--danger); font-weight: 500; }
   .is-invalid .rt-field-hint { display: none; }
 
   /* Switch: when on, the thumb becomes a ring. */
@@ -407,4 +406,9 @@
     .rt-btn, .rt-switch-track, .rt-switch-thumb, .rt-tab, .rt-input,
     .rt-nav-link, .rt-row { transition: none; }
   }
+
+  /* Docs code block: mono content on surface, hairline frame. Used by the
+     API / MCP reference pages; content is plain preformatted text. */
+  .rt-code { margin: 0; padding: var(--space-4); background: var(--surface); border: var(--border-hair) solid var(--line); border-radius: var(--radius-md); color: var(--ink); font-family: var(--font-mono); font-size: 13px; line-height: 20px; overflow-x: auto; white-space: pre; }
+  .rt-code code { font-family: inherit; font-size: inherit; }
 }

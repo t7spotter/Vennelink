@@ -7,9 +7,9 @@
 <div class="grid min-h-screen place-items-center px-4">
   <div class="w-full max-w-sm">
     <a href="{% if LANDING_ENABLED %}{% url 'landing' %}{% else %}{% url 'dashboard' %}{% endif %}"
-       class="mb-8 flex items-center justify-center gap-2.5 font-bold tracking-tight text-ink">
-      <img src="{% static 'img/retie-app-icon.svg' %}" alt="" class="h-9 w-9 rounded-lg">
-      Retie
+       class="mb-8 flex justify-center font-bold tracking-tight text-ink">
+      <img src="{% static 'img/retie-lockup.svg' %}" alt="Retie" width="170" height="51" class="h-8 w-auto dark:hidden">
+      <img src="{% static 'img/retie-lockup-reversed.svg' %}" alt="Retie" width="170" height="51" class="hidden h-8 w-auto dark:block">
     </a>
 
     <div class="rt-card is-raised">

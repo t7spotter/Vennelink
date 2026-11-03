@@ -1,6 +1,6 @@
-# Retie — a simple, secure, self-hosted URL shortener
+# Vennelink — a simple, secure, self-hosted URL shortener
 
-Retie is a standalone URL shortener you install and operate yourself.
+Vennelink is a standalone URL shortener you install and operate yourself.
 Every installation is fully independent: your server, your domain, your
 database, your user accounts, your analytics. It talks to no external
 service and never phones home.
@@ -96,8 +96,11 @@ deployment, and no unnecessary infrastructure.
   top links and weekly non-bot clicks (cron: `manage.py send_digest`).
 - REST API at `/api/v1/` documented as OpenAPI 3 by drf-spectacular and served
   as a live docs portal (plus MCP for agents) by apiwarden at `/api/docs/`.
-- Modern responsive UI: Django templates + HTMX partial updates, Tailwind
-  CSS, Lucide icons, Chart.js, Flatpickr date/time pickers, light/dark themes.
+- Modern responsive UI: React 19 + Next.js (App Router, TypeScript, Tailwind
+  CSS 4) frontend served on port 3000 in development, talking to Django over
+  same-origin JSON endpoints under `/webapi/`. Django still owns auth, 2FA,
+  sessions, and every link/redirect/analytics behavior; the legacy Django
+  template pages remain as a fallback (unlock flow, error and admin pages).
 - Docker Compose deployment with PostgreSQL and Gunicorn.
 
 ## Technology stack
@@ -106,7 +109,7 @@ deployment, and no unnecessary infrastructure.
 |------------|-----------------------------------------------------|
 | Backend    | Python 3.12+, Django 5.2 LTS, Django REST Framework |
 | Database   | PostgreSQL (psycopg 3)                              |
-| Frontend   | Django templates, HTMX, Tailwind CSS, Lucide, Chart.js, Flatpickr |
+| Frontend   | React 19 + Next.js 15 (App Router, TypeScript strict, Tailwind CSS 4, chart.js, lucide-react, custom token-built date/time picker); Django session cookies + CSRF |
 | Docs       | drf-spectacular (schema) + apiwarden (docs portal, MCP) |
 | Agents     | MCP server at `/mcp/` (Streamable HTTP, API-key auth) + docs MCP at `/api/docs/mcp` |
 | Serving    | Gunicorn + WhiteNoise (static), Docker Compose      |
@@ -120,12 +123,44 @@ config/       settings, URLs, WSGI, the /api/ URL module
 accounts/     registration, login/logout, profile, password flows
 links/        Link model, forms, dashboard views, public redirect, REST API
 analytics/    ClickEvent model, click recording, aggregation queries
-templates/    site templates (pages/, links/, registration/, errors)
+frontend/     React app: Next.js App Router pages + components + webapi client
+templates/    Django-rendered fallback pages (unlock, errors, admin, password flows)
 static/       css (source + built), js, vendored vendor/ libraries
 tests/        pytest suite
 ```
 The compiled `static/css/app.css` is committed, so local development and
 Docker deploys don't require Node unless you change the templates/CSS source.
+
+## Frontend architecture
+
+The React app lives in `frontend/` and is the user-facing UI. It talks to
+Django over the same origin:
+
+- In development, `npm run dev` serves Next.js on port 3000 — and the
+  Compose `web` service runs the same setup in production (`npm run
+  build` + `next start`, built by the Docker `web` stage). A fallback
+  rewrite in `frontend/next.config.ts` sends every unmatched path to
+  Django (`DJANGO_BACKEND_URL`, `http://app:8000` in Docker) — links, QR
+  SVGs, CSV export, admin, and the unlock flow are still served by
+  Django inside the same origin, so session cookies and CSRF simply
+  work.
+- The proxy forwards URLs to Django verbatim
+  (`skipTrailingSlashRedirect: true` in `next.config.ts`): Next must not
+  canonize trailing slashes itself, because other layers (Django admin's
+  login redirects) would re-canonicalize in turn and loop forever on
+  `?next=` re-encoding. Deep links and client code that send slash-less
+  Django paths are covered by a tiny middleware
+  (`config/proxy_middleware.py`, first in `MIDDLEWARE`) that appends the
+  slash before URL resolution — but only when the URLconf says the
+  slash-less path can't be a real route (which keeps short codes and
+  files like `*.qr.svg` intact).
+- The React client calls JSON endpoints under `/webapi/` (see
+  `webapi.py` in `links/`, `accounts/`, and `analytics/` — thin wrappers
+  around the same forms and helpers the template views use). The CSRF
+  token is read from the cookie and sent as `X-CSRFToken`; there is no
+  JWT and no secret is exposed to client JS.
+- Server components fetch Django directly via `DJANGO_BACKEND_URL`
+  (default `http://127.0.0.1:8000`).
 
 ## Quick start (local development)
 
@@ -134,7 +169,7 @@ Docker deploys don't require Node unless you change the templates/CSS source.
 2. Start PostgreSQL any way you like; the quickest is:
 
    ```bash
-   docker run -d --name retie-pg -e POSTGRES_PASSWORD=postgres \
+   docker run -d --name vennelink-pg -e POSTGRES_PASSWORD=postgres \
      -e POSTGRES_DB=shortener -p 5432:5432 postgres:14.4
    ```
 
@@ -149,21 +184,32 @@ Docker deploys don't require Node unless you change the templates/CSS source.
 
    ```bash
    cp .env.example .env     # defaults work for local dev except the password
-   # edit DATABASE_URL=postgres://postgres:postgres@localhost:5432/shortener
+   # edit DB_NAME / DB_USER / DB_PASSWORD as needed (defaults: shortener/postgres/postgres)
    ```
 
-5. Migrate and run:
+5. Migrate and run Django:
 
    ```bash
    .venv/bin/python manage.py migrate
-   .venv/bin/python manage.py runserver
+   .venv/bin/python manage.py runserver   # API + fallback pages on :8000
    ```
 
-   Visit http://localhost:8000. Register from the landing page, then use the
-   dashboard. See also `DEBUG=true` in `.env` for local error pages.
+6. Run the React frontend:
 
-6. Static files are provided pre-built (`static/css/app.css` is committed), so
-   no Node tooling is needed. To rebuild CSS after template changes:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev          # UI on http://localhost:3000, proxies to Django
+   ```
+
+   Visit http://localhost:3000. Register from the landing page, then use the
+   dashboard. See also `DEBUG=true` in `.env` for local error pages. Quality
+   checks for the frontend: `npm run typecheck`, `npm run lint`,
+   `npm run build` (all inside `frontend/`).
+
+7. Static files for the Django-rendered fallback pages are provided pre-built
+   (`static/css/app.css` is committed), so the Python side needs no Node
+   tooling. To rebuild that CSS after template changes:
 
    ```bash
    # with NodeJS installed:
@@ -175,13 +221,24 @@ Docker deploys don't require Node unless you change the templates/CSS source.
    ./tailwindcss -i static/css/src/input.css -o static/css/app.css --minify
    ```
 
-7. Create an administrator:
+8. Create an administrator:
 
    ```bash
    .venv/bin/python manage.py createsuperuser
    ```
 
 ## Deploying on your own server
+
+The frontend ships in Docker: the `web` service builds the React app
+(`frontend/`) and serves it with Next.js on port 3000. It proxies every
+path the React app doesn't handle — redirects, QR SVGs, CSV download,
+`/admin`, `/mcp`, the unlock flow — to the Django `app` container, so one
+origin carries the whole site with working session cookies and CSRF.
+Django itself stays internal: its `APP_PORT` (default 8000) is published
+to `127.0.0.1` on the host only, for admin/API use and debugging from the
+box itself — the React `web` service is the public origin. Point your
+reverse proxy at port 3000 and set
+`SITE_URL` + `CSRF_TRUSTED_ORIGINS` to that public URL.
 
 Assumptions: a Linux VPS or dedicated box with Docker + Docker Compose, a
 domain you control, and (for HTTPS) a reverse proxy such as nginx/Caddy.
@@ -195,7 +252,7 @@ there is no CDN or global platform involved.
 ### 2. Environment
 
 ```bash
-scp .env.example server:/srv/retie/.env
+scp .env.example server:/srv/vennelink/.env
 ```
 
 Edit `.env` on the server:
@@ -213,8 +270,10 @@ Edit `.env` on the server:
 docker compose up -d --build
 ```
 
-The app container runs migrations, collects static files, then serves with
-Gunicorn on port 8000 (or `$APP_PORT`). The database volume persists at
+The `app` container runs migrations, collects static files, then serves
+Gunicorn internally on port 8000 (published to `127.0.0.1` as
+`$APP_PORT`), while the React `web` service answers on port 3000 —
+the public origin. The database volume persists at
 `pgdata`. PostgreSQL itself is **not** exposed to the host or internet.
 
 ### 4. Reverse proxy & HTTPS
@@ -231,7 +290,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/links.example.com/privkey.pem;
 
     location / {
-        proxy_pass         http://127.0.0.1:8000;
+        proxy_pass         http://127.0.0.1:3000;  # the React web service
         proxy_set_header   Host              $host;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         # Only include this if the app container is behind YOUR trusted proxy:
@@ -245,7 +304,7 @@ Let's Encrypt issuance is standard via `certbot --nginx`. With Caddy:
 
 ```
 links.example.com {
-    reverse_proxy 127.0.0.1:8000
+    reverse_proxy 127.0.0.1:3000
 }
 ```
 
@@ -283,7 +342,7 @@ docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE shortener;"
 docker compose exec -T postgres psql -U postgres shortener < backup_2026-10-18.sql
 
 # Off-server copy (recommended)
-scp server:/srv/retie/backup_2026-10-18.sql ./
+scp server:/srv/vennelink/backup_2026-10-18.sql ./
 ```
 
 Also back up `.env` (contains `SECRET_KEY` — losing it invalidates sessions
@@ -298,7 +357,7 @@ With `LINK_HEALTH_ENABLED=true`, a scheduled job verifies each destination
 still answers and paints an OK/DOWN badge next to the link on the dashboard:
 
 ```
-17 3 * * * cd /srv/retie && .venv/bin/python manage.py check_links --sleep 0.5
+17 3 * * * cd /srv/vennelink && .venv/bin/python manage.py check_links --sleep 0.5
 ```
 
 Security note: fetching URLs configured by *your users* from *your server*
@@ -313,7 +372,7 @@ immediately. Purge them for good on a schedule once the retention window
 passes:
 
 ```
-0 3 * * * cd /srv/retie && .venv/bin/python manage.py purge_trash --days 30
+0 3 * * * cd /srv/vennelink && .venv/bin/python manage.py purge_trash --days 30
 ```
 
 (or `docker compose run --rm app python manage.py purge_trash --days 30`).
@@ -327,7 +386,7 @@ week. Users without clicks in the week are skipped, sending nothing.
 Cron (Mondays 09:00):
 
 ```
-0 9 * * 1 cd /srv/retie && .venv/bin/python manage.py send_digest
+0 9 * * 1 cd /srv/vennelink && .venv/bin/python manage.py send_digest
 ```
 
 (or `docker compose run --rm app python manage.py send_digest`).
@@ -339,7 +398,7 @@ table above); the default console backend prints the message to stdout so
 Click webhooks use the same pattern (cron every minute):
 
 ```
-* * * * * cd /srv/retie && .venv/bin/python manage.py flush_webhooks
+* * * * * cd /srv/vennelink && .venv/bin/python manage.py flush_webhooks
 ```
 
 Rows without a reachable endpoint retry on the next run; after 5 failed
@@ -362,7 +421,7 @@ unpkg.com/lucide.org/), Flatpickr from npmjs.com/package/flatpickr (4.6.13).
 | `DEBUG` | Django debug flag; always `false` in production |
 | `ALLOWED_HOSTS` | Comma-separated hosts Django may serve |
 | `CSRF_TRUSTED_ORIGINS` | Comma-separated `scheme://host` origins trusted for CSRF (HTTPS setups) |
-| `DATABASE_URL` | PostgreSQL DSN (`postgres://user:pass@host:5432/db`) |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | PostgreSQL connection fields, read directly into the Django `DATABASES` object (defaults: `shortener`, `postgres`, `postgres`, `localhost`, `5432`) |
 | `SITE_URL` | Canonical public URL used to build short links — **must include the scheme** (`https://…`); startup fails otherwise |
 | `EXTRA_DOMAINS` | Comma-separated extra hostnames links can be pinned to (e.g. `go.example.org,sho.rt`); a pinned link answers **only** on its chosen domain. Add the hosts to `ALLOWED_HOSTS` and point DNS at this deployment |
 | `BLOCKED_DESTINATIONS` | Comma-separated dest hosts (with their subdomains) that may never be shortenable |
@@ -387,14 +446,15 @@ unpkg.com/lucide.org/), Flatpickr from npmjs.com/package/flatpickr (4.6.13).
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Optional Google sign-in (see "Google sign-in" below); both empty keeps the buttons hidden |
 | `LANDING_ENABLED` | `false` turns `/` into an app-only doorway (dashboard/login, no marketing page) |
 | `APIWARDEN_TOKEN` | Optional shared token gating `/api/docs/` (unset = public docs) |
-| `POSTGRES_DB`, `POSTGRES_PASSWORD` | Passed to the Postgres container; the app derives `DATABASE_URL` from them |
-| `GUNICORN_WORKERS`, `APP_PORT` | Serving knobs |
+| `POSTGRES_DB`, `POSTGRES_PASSWORD` | Passed to the Postgres container; compose.yaml maps the same values into the app's `DB_NAME` / `DB_PASSWORD` (host overridden to the `postgres` service) |
+| `GUNICORN_WORKERS`, `APP_PORT` | Serving knobs (`APP_PORT` is `127.0.0.1`-bound) |
+| `WEB_PORT` | Host port for the public React origin (default 3000) |
 
 ## API
 
 Base: `/api/v1/` — interactive documentation at `/api/docs/`, served by
 [apiwarden](https://pypi.org/project/apiwarden/) from the committed OpenAPI
-spec (`api-docs/retie/openapi.yaml`). The raw schema is also available at
+spec (`api-docs/vennelink/openapi.yaml`). The raw schema is also available at
 `/api/schema/`. Auth: session cookie (browser) or an API key.
 
 ### API keys
@@ -426,12 +486,12 @@ key there and calls to `SITE_URL` work from the browser.
 Because the docs are served from a spec file, they can also be read by agents:
 `/api/docs/mcp` is an MCP server (`list_apis`, `search_operations`,
 `get_operation`, …), and `/api/docs/index.json`, `/api/docs/llms.txt`,
-`/api/docs/types/retie.ts` expose the same content as data. That is why the
+`/api/docs/types/vennelink.ts` expose the same content as data. That is why the
 spec is regenerated on container start — edit the API and the docs follow.
 After changing API code locally, refresh the spec with:
 
 ```bash
-.venv/bin/python manage.py spectacular --file api-docs/retie/openapi.yaml
+.venv/bin/python manage.py spectacular --file api-docs/vennelink/openapi.yaml
 ```
 
 Optional: set `APIWARDEN_TOKEN` in `.env` to require a shared token on every
@@ -485,7 +545,7 @@ servers):
 ```json
 {
   "mcpServers": {
-    "retie": {
+    "vennelink": {
       "type": "http",
       "url": "https://links.example.com/mcp/",
       "headers": { "Authorization": "Bearer YOUR_API_KEY" }
@@ -497,7 +557,7 @@ servers):
 Or with Claude Code:
 
 ```bash
-claude mcp add --transport http retie https://links.example.com/mcp/ \
+claude mcp add --transport http vennelink https://links.example.com/mcp/ \
   --header "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -556,8 +616,7 @@ not DB-level attackers.
 ## Tests
 
 ```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/shortener \
-  .venv/bin/python -m pytest tests/
+.venv/bin/python -m pytest tests/
 ```
 
 pytest-django creates and destroys a dedicated `test_shortener` database.
@@ -570,7 +629,7 @@ pytest-django creates and destroys a dedicated `test_shortener` database.
 - **Access control:** every link-management and analytics view filters by the
   logged-in user; the site's HTML/API returns 404s for other users' codes.
   Anonymous link creation is impossible.
-- **Cookies:** `HttpOnly`, `SameSite=Lax`; `Secure` in HTTPS deployments via env. CSRF is enforced on all unsafe requests (incl. by HTMX via `X-CSRFToken`).
+- **Cookies:** `HttpOnly`, `SameSite=Lax`; `Secure` in HTTPS deployments via env. CSRF is enforced on all unsafe requests (the React client sends `X-CSRFToken` on `/webapi/` calls).
 - **Headers:** `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
   tight `Referrer-Policy`, HSTS once HTTPS is live.
 - **Rate limiting is per-worker.** Login, registration, and link creation are

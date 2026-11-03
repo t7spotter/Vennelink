@@ -6,17 +6,17 @@
     <div class="relative flex-1">
       <i data-lucide="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"></i>
       <input type="search" name="q" value="{{ query }}" placeholder="Search title, destination, or code…"
-             class="rt-input pl-9"
+             class="vn-input pl-9"
              aria-label="Search links">
       <input type="hidden" name="status" value="{{ status }}">
     </div>
-    <select name="status" aria-label="Filter by status" class="rt-input w-auto">
+    <select name="status" aria-label="Filter by status" class="vn-input w-auto">
       <option value="all" {% if status == 'all' %}selected{% endif %}>All</option>
       <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
       <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
       <option value="expired" {% if status == 'expired' %}selected{% endif %}>Expired</option>
       <option value="trash" {% if status == 'trash' %}selected{% endif %}>Trash</option>
     </select>
-    <button type="submit" class="rt-btn rt-btn-secondary sm:hidden">Go</button>
+    <button type="submit" class="vn-btn vn-btn-secondary sm:hidden">Go</button>
   </form>
 </div>

@@ -6,18 +6,45 @@ services:
   app:
     build: .
     env_file: .env
-    # Point Django at the Postgres service defined below, regardless of what
-    # DATABASE_URL says on the operator's machine.
+    # Point Django's DB object at the Postgres service defined below,
+    # regardless of what the host machine's DB_* settings are.
     environment:
-      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-shortener}
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "${APP_PORT:-8000}:8000"
+      # Loopback only: the React web service is the public origin; Django is
+      # reachable locally for ops (admin, API, debugging), never from outside.
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
     volumes:
       - static:/app/staticfiles
+
+  web:
+    # The public UI: React (Next.js) on port 3000. next.config.ts proxies
+    # everything the React app doesn't handle to Django, so this one origin
+    # serves the whole site with working session cookies and CSRF.
+    build:
+      context: .
+      target: web
+      # Next serializes rewrites at build time, so the backend target is
+      # baked in; DJANGO_BACKEND_URL is also read at runtime for server
+      # components (both must match this value unless rebuilt).
+      args:
+        DJANGO_BACKEND_URL: ${DJANGO_BACKEND_URL:-http://app:8000}
+    environment:
+      # Server components + the same-origin rewrite proxy target Django.
+      DJANGO_BACKEND_URL: ${DJANGO_BACKEND_URL:-http://app:8000}
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${WEB_PORT:-3000}:3000"
 
   postgres:
     image: postgres:14.4

@@ -1,28 +1,28 @@
 {% extends "base.html" %}
 
-{% block title %}Transfer {{ link.code }} — Retie{% endblock %}
+{% block title %}Transfer {{ link.code }} — Vennelink{% endblock %}
 
 {% block body %}
 <div class="mx-auto max-w-xl px-4 pb-16 py-10 sm:px-6">
-  <a href="{% url 'link_edit' link.code %}" class="rt-btn rt-btn-quiet -ml-3 mb-6">
+  <a href="{% url 'link_edit' link.code %}" class="vn-btn vn-btn-quiet -ml-3 mb-6">
     <i data-lucide="arrow-left" class="h-4 w-4"></i> Back to editing
   </a>
 
-  <div class="rt-card">
+  <div class="vn-card">
     <h1 class="heading text-ink">Transfer ownership</h1>
 
     {% if error %}
       <form method="post" action="{% url 'link_transfer' link.code %}" class="flex flex-col gap-4 border-t border-line pt-6">
         {% csrf_token %}
-        <div class="rt-notice rt-notice-danger">
-          <i data-lucide="octagon-alert" class="rt-notice-icon h-5 w-5"></i>
-          <div class="rt-notice-body"><p class="rt-notice-text">{{ error }}</p></div>
+        <div class="vn-notice vn-notice-danger">
+          <i data-lucide="octagon-alert" class="vn-notice-icon h-5 w-5"></i>
+          <div class="vn-notice-body"><p class="vn-notice-text">{{ error }}</p></div>
         </div>
-        <div class="rt-field">
+        <div class="vn-field">
           <input type="text" name="new_owner" value="{{ request.POST.new_owner }}" placeholder="username or email"
-                 class="rt-input" aria-label="Username or email">
+                 class="vn-input" aria-label="Username or email">
         </div>
-        <button type="submit" class="rt-btn rt-btn-primary">Look up recipient</button>
+        <button type="submit" class="vn-btn vn-btn-primary">Look up recipient</button>
       </form>
     {% elif new_owner %}
       <p class="mt-1 body-sm text-ink-soft">
@@ -38,19 +38,19 @@
         {% csrf_token %}
         <input type="hidden" name="new_owner" value="{{ new_owner.pk }}">
         <input type="hidden" name="confirm_transfer" value="on">
-        <a href="{% url 'link_edit' link.code %}" class="rt-btn rt-btn-secondary">Cancel</a>
-        <button type="submit" class="rt-btn rt-btn-primary">
+        <a href="{% url 'link_edit' link.code %}" class="vn-btn vn-btn-secondary">Cancel</a>
+        <button type="submit" class="vn-btn vn-btn-primary">
           Transfer to {{ new_owner.username }}
         </button>
       </form>
     {% else %}
       <form method="post" action="{% url 'link_transfer' link.code %}" class="flex flex-col gap-4 border-t border-line pt-6">
         {% csrf_token %}
-        <div class="rt-field">
+        <div class="vn-field">
           <input type="text" name="new_owner" placeholder="username or email"
-                 class="rt-input" aria-label="Username or email">
+                 class="vn-input" aria-label="Username or email">
         </div>
-        <button type="submit" class="rt-btn rt-btn-primary">Look up recipient</button>
+        <button type="submit" class="vn-btn vn-btn-primary">Look up recipient</button>
       </form>
     {% endif %}
   </div>

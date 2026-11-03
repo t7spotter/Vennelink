@@ -18,7 +18,7 @@ class _StyleMixin:
                 field.widget.attrs["class"] = FIELD_CLASS
 
 
-class RetieLoginForm(_StyleMixin, AuthenticationForm):
+class VennelinkLoginForm(_StyleMixin, AuthenticationForm):
     """AuthenticationForm with project-styled inputs."""
 
 

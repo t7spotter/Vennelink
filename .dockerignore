@@ -3,9 +3,18 @@
 __pycache__/
 *.pyc
 staticfiles/
-node_modules/
+# Dependencies and build output anywhere in the tree (root Tailwind CLI and
+# the frontend's node_modules together are >500MB; the Docker build needs
+# none of them — the css stage installs its own npm deps).
+**/node_modules/
+**/.next/
+**/.npm/
+**/eslintcache
+**/*.tsbuildinfo
 .env
 db.sqlite3
 htmlcov/
 .pytest_cache/
 .DS_Store
+# Local-only working files (dev-ops, scratch docs)
+tmp/

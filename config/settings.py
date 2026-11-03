@@ -91,6 +91,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "config.proxy_middleware.ProxySlashFixMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -123,14 +124,20 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database
+# Database: explicit settings object (name/user/password/host/port) instead
+# of a single URL, so operators configure the pieces they actually change.
 
 DATABASES = {
-    "default": env.db(
-        "DATABASE_URL", default="postgres://postgres:postgres@localhost:5432/shortener"
-    ),
+    "default": {
+        "ENGINE": env("DB_ENGINE", default="django.db.backends.postgresql"),
+        "NAME": env("DB_NAME", default="shortener"),
+        "USER": env("DB_USER", default="postgres"),
+        "PASSWORD": env("DB_PASSWORD", default="postgres"),
+        "HOST": env("DB_HOST", default="localhost"),
+        "PORT": env.int("DB_PORT", default=5432),
+        "CONN_MAX_AGE": env.int("CONN_MAX_AGE", default=0),
+    },
 }
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=0)
 
 # Authentication
 
@@ -172,7 +179,7 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Retie API",
+    "TITLE": "Vennelink API",
     "DESCRIPTION": "REST API for this self-hosted URL shortener. All endpoints require authentication.",
     "VERSION": "1.0.0",
     # The documentation endpoints are meta, not API surface; keep them out of
@@ -214,14 +221,14 @@ def drop_meta_endpoints(endpoints):
 # API documentation portal (apiwarden). The OpenAPI spec itself is generated
 # by drf-spectacular (see SPECTACULAR_SETTINGS); regenerate the served copy
 # with:
-#   python manage.py spectacular --file api-docs/retie/openapi.yaml
+#   python manage.py spectacular --file api-docs/vennelink/openapi.yaml
 # apiwarden serves that file as a live portal at /api/docs/. Set
 # APIWARDEN_TOKEN to require a shared token on the portal; by default it is
 # public, like the rest of the docs.
 token = env.str("APIWARDEN_TOKEN", default="")  # omit entirely = public portal
 APIWARDEN = {
     "root": BASE_DIR / "api-docs",
-    "title": "Retie API",
+    "title": "Vennelink API",
     "servers": [SITE_URL],
     "watch": DEBUG,
 }
@@ -270,7 +277,12 @@ STORAGES = {
 # Security headers / HTTPS
 # These settings are safe to enable unconditionally: they cost nothing when the
 # site is served over plain HTTP locally, and protect production.
-CSRF_COOKIE_HTTPONLY = True
+# CSRF cookie must be readable by client JavaScript, otherwise JS-driven
+# requests cannot send the CSRF token header (demanding the token from
+# HTML meta tags is not possible for a SPA frontend). CSRF enforcement is
+# unchanged: the cookie value is simply readable, and unsafe requests
+# must still send it as X-CSRFToken.
+CSRF_COOKIE_HTTPONLY = env.bool("CSRF_COOKIE_HTTPONLY", default=True)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)

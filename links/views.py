@@ -321,13 +321,25 @@ def link_import(request):
     except UnicodeDecodeError:
         return _import_result(request, error="The file is not readable UTF-8/ASCII CSV.")
 
+    created, failed, total, error = run_import(text, request.user)
+    if error:
+        return _import_result(request, error=error)
+
+    return _import_result(request, created=created, failed=failed, total=total)
+
+
+def run_import(text: str, user) -> tuple:
+    """Parse an uploaded CSV body and create links for its rows.
+
+    Shared by the template view and the JSON web API. Returns
+    (created, failed, total, error) where `error` is a user-facing
+    message when the file itself is unusable (no rows / too many rows).
+    """
     rows = [row for row in csv.reader(io.StringIO(text)) if any((c or "").strip() for c in row)]
     if not rows:
-        return _import_result(request, error="That CSV has no rows.")
+        return 0, [], 0, "That CSV has no rows."
     if len(rows) > MAX_IMPORT_ROWS:
-        return _import_result(
-            request, error=f"Import at most {MAX_IMPORT_ROWS} rows at a time."
-        )
+        return 0, [], 0, f"Import at most {MAX_IMPORT_ROWS} rows at a time."
 
     header_map = _import_header_map(rows[0])
     data_rows = rows[1:] if header_map else rows
@@ -346,14 +358,38 @@ def link_import(request):
                 "title": cells.get("title") or "",
             },
         )
-        form.user = request.user
+        form.user = user
         if form.is_valid():
             form.save()
             created += 1
         else:
             failed.append((index, _form_errors_text(form)))
+    return created, failed, len(data_rows), None
 
-    return _import_result(request, created=created, failed=failed, total=len(data_rows))
+
+def _import_rows(text, user, rows, header_map, column_keys):
+    """Parse CSV rows and create links; returns (created, failed, total)."""
+    data_rows = rows[1:] if header_map else rows
+    created, failed = 0, []
+    for index, row in enumerate(data_rows, start=1):
+        cells = {
+            key: (row[pos].strip() if pos < len(row) else "")
+            for key, pos in column_keys.items()
+        }
+        form = LinkForm(
+            data={
+                "destination": cells.get("destination") or "",
+                "code": _coerce_alias(cells.get("alias") or ""),
+                "title": cells.get("title") or "",
+            },
+        )
+        form.user = user
+        if form.is_valid():
+            form.save()
+            created += 1
+        else:
+            failed.append((index, _form_errors_text(form)))
+    return created, failed, len(data_rows)
 
 
 HEADER_ALIASES = {
@@ -429,7 +465,7 @@ def _import_result(request, created=0, failed=None, total=0, error=None):
 def link_export(request):
     """Every link of yours as CSV — a portable backup in one click."""
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = "attachment; filename=retie-links.csv"
+    response["Content-Disposition"] = "attachment; filename=vennelink-links.csv"
     writer = csv.writer(response)
     writer.writerow(["code", "destination", "title", "is_active", "expires_at", "created_at", "clicks"])
     links = (

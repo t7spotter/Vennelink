@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}MCP server — Retie{% endblock %}
+{% block title %}MCP server — Vennelink{% endblock %}
 
 {% block body %}
 <div class="mx-auto max-w-2xl px-4 py-12">
   <a href="{% if LANDING_ENABLED %}{% url 'landing' %}{% else %}{% url 'dashboard' %}{% endif %}"
-     class="rt-btn rt-btn-quiet -ml-3 mb-6">
+     class="vn-btn vn-btn-quiet -ml-3 mb-6">
     <i data-lucide="arrow-left" class="h-4 w-4"></i> Back to landing
   </a>
 
-  <div class="rt-card is-raised">
+  <div class="vn-card is-raised">
     <div class="flex items-start justify-between gap-4">
       <h1 class="heading text-ink">MCP server</h1>
-      <span class="rt-tag rt-tag-violet">tools</span>
+      <span class="vn-tag vn-tag-violet">tools</span>
     </div>
     <p class="body-sm mt-2 text-ink-soft">
       Agents (Claude Desktop, Claude Code, Cursor, OpenCode, …) can manage your
@@ -26,7 +26,7 @@
 
     <!-- ── Endpoint ────────────────────────────────────────────────── -->
     <h2 class="subheading mt-8 text-ink">Endpoint</h2>
-    <pre class="rt-code mt-3">{{ SITE_URL }}/mcp/</pre>
+    <pre class="vn-code mt-3">{{ SITE_URL }}/mcp/</pre>
     <p class="body-sm mt-2 text-ink-soft">
       Stateless Streamable HTTP: send every JSON-RPC message as a
       <code class="mono">POST</code>; there is no session to open and no SSE
@@ -42,7 +42,7 @@
       header. Revoke it on the profile page and every MCP session goes dark
       with it.
     </p>
-    <pre class="rt-code mt-3"><code>Authorization: Bearer &lt;api key&gt;</code></pre>
+    <pre class="vn-code mt-3"><code>Authorization: Bearer &lt;api key&gt;</code></pre>
 
     <!-- ── Connect a client ────────────────────────────────────────── -->
     <h2 class="subheading mt-8 text-ink">Connect a client</h2>
@@ -50,9 +50,9 @@
       Add this server to your client's config (the shape below works for
       Claude Desktop/Claude Code, Cursor and OpenCode):
     </p>
-    <pre class="rt-code mt-3"><code>{
+    <pre class="vn-code mt-3"><code>{
   "mcpServers": {
-    "retie": {
+    "vennelink": {
       "url": "{{ SITE_URL }}/mcp/",
       "headers": {
         "Authorization": "Bearer &lt;api key&gt;"
@@ -90,8 +90,8 @@
       Any MCP client bootstraps with <code class="mono">initialize</code>, then
       calls tools. The same works from curl:
     </p>
-    <pre class="rt-code mt-3"><code>curl -X POST {{ SITE_URL }}/mcp/ \
-  -H "Authorization: Bearer $RETIE_KEY" \
+    <pre class="vn-code mt-3"><code>curl -X POST {{ SITE_URL }}/mcp/ \
+  -H "Authorization: Bearer $VENNELINK_KEY" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
        "params": {"name": "create_link",
@@ -102,11 +102,11 @@
 #      "text": "{\"code\": \"k3mQx9\", \"short_url\": \"…/k3mQx9\", …}"}]}}</code></pre>
 
     <!-- ── Errors ──────────────────────────────────────────────────── -->
-    <div class="rt-notice rt-notice-info mt-8">
-      <i data-lucide="info" class="rt-notice-icon h-4 w-4"></i>
-      <div class="rt-notice-body">
-        <p class="rt-notice-title">Bad input is not a crash</p>
-        <p class="rt-notice-text">
+    <div class="vn-notice vn-notice-info mt-8">
+      <i data-lucide="info" class="vn-notice-icon h-4 w-4"></i>
+      <div class="vn-notice-body">
+        <p class="vn-notice-title">Bad input is not a crash</p>
+        <p class="vn-notice-text">
           Validation problems come back as an
           <code class="mono">isError</code> tool result with a readable
           message — only an unknown method or malformed JSON is a JSON-RPC

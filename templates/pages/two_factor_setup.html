@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Two-factor authentication — Retie{% endblock %}
+{% block title %}Two-factor authentication — Vennelink{% endblock %}
 
 {% block body %}
 <main class="mx-auto max-w-2xl px-4 py-10 sm:px-6">
@@ -11,31 +11,31 @@
 
   {% if messages %}
     {% for message in messages %}
-    <div class="rt-notice mt-4
-      {% if message.tags == 'error' %}rt-notice-danger{% elif message.tags == 'success' %}rt-notice-success{% elif message.tags == 'warning' %}rt-notice-warning{% else %}rt-notice-info{% endif %}">
-      <i data-lucide="info" class="rt-notice-icon h-5 w-5"></i>
-      <div class="rt-notice-body"><p class="rt-notice-text">{{ message }}</p></div>
+    <div class="vn-notice mt-4
+      {% if message.tags == 'error' %}vn-notice-danger{% elif message.tags == 'success' %}vn-notice-success{% elif message.tags == 'warning' %}vn-notice-warning{% else %}vn-notice-info{% endif %}">
+      <i data-lucide="info" class="vn-notice-icon h-5 w-5"></i>
+      <div class="vn-notice-body"><p class="vn-notice-text">{{ message }}</p></div>
     </div>
     {% endfor %}
   {% endif %}
 
   {% if two.enabled %}
-    <div class="rt-notice rt-notice-success mt-6">
-      <i data-lucide="shield-check" class="rt-notice-icon h-5 w-5"></i>
-      <div class="rt-notice-body">
-        <p class="rt-notice-title">Two-factor is protecting this account</p>
-        <p class="rt-notice-text">Logins need a code from your authenticator app (or a recovery code).</p>
-        <form method="post" class="rt-notice-action flex flex-wrap items-center gap-2">
+    <div class="vn-notice vn-notice-success mt-6">
+      <i data-lucide="shield-check" class="vn-notice-icon h-5 w-5"></i>
+      <div class="vn-notice-body">
+        <p class="vn-notice-title">Two-factor is protecting this account</p>
+        <p class="vn-notice-text">Logins need a code from your authenticator app (or a recovery code).</p>
+        <form method="post" class="vn-notice-action flex flex-wrap items-center gap-2">
           {% csrf_token %}
           <input type="hidden" name="action" value="disable">
           <input name="code" inputmode="numeric" maxlength="7" placeholder="Current code to confirm"
-                 class="rt-input w-56">
-          <button type="submit" class="rt-btn rt-btn-sm rt-btn-secondary">Turn off</button>
+                 class="vn-input w-56">
+          <button type="submit" class="vn-btn vn-btn-sm vn-btn-secondary">Turn off</button>
         </form>
       </div>
     </div>
   {% else %}
-    <div class="rt-card mt-6">
+    <div class="vn-card mt-6">
       <h2 class="subheading text-ink">Scan with your authenticator, then confirm</h2>
       <ol class="mt-2 list-decimal space-y-2 pl-5 body-sm text-ink-soft">
         <li>Open your authenticator app (Aegis, 1Password, Google Authenticator, …).</li>
@@ -49,15 +49,15 @@
           {% csrf_token %}
           <input type="hidden" name="action" value="enable">
           <input name="code" inputmode="numeric" maxlength="7" placeholder="123456" required autofocus
-                 class="rt-input w-40 font-mono">
-          <button type="submit" class="rt-btn rt-btn-primary">Enable</button>
+                 class="vn-input w-40 font-mono">
+          <button type="submit" class="vn-btn vn-btn-primary">Enable</button>
         </form>
       </div>
     </div>
   {% endif %}
 
   {% if fresh_codes %}
-    <div class="rt-card is-raised mt-6 border-coral-soft bg-coral-soft">
+    <div class="vn-card is-raised mt-6 border-coral-soft bg-coral-soft">
       <h2 class="subheading text-ink">Recovery codes — shown once, store them now</h2>
       <ul class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 font-mono caption text-ink">
         {% for code in fresh_codes %}<li class="truncate">{{ code }}</li>{% endfor %}
@@ -68,7 +68,7 @@
     </div>
   {% endif %}
 
-  <a href="{% url 'profile' %}" class="rt-btn rt-btn-quiet mt-8 -ml-3">
+  <a href="{% url 'profile' %}" class="vn-btn vn-btn-quiet mt-8 -ml-3">
     <i data-lucide="arrow-left" class="h-4 w-4"></i> Back to profile
   </a>
 </main>

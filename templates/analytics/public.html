@@ -5,7 +5,7 @@
 
 {% block body %}
 <div class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
-  <header class="rt-card is-raised">
+  <header class="vn-card is-raised">
     <p class="mono-sm text-ink-soft">Public link statistics</p>
     <h1 class="heading mt-1 text-ink">
       {% if link.title %}{{ link.title }}{% else %}/{{ link.code }}{% endif %}
@@ -27,7 +27,7 @@
     <p class="mt-3 caption text-ink-faint">Aggregate counts only — updated live, no personal data.</p>
   </header>
 
-  <div class="rt-card mt-6">
+  <div class="vn-card mt-6">
     <h2 class="subheading text-ink">Clicks over the last 30 days</h2>
     <div class="mt-4 h-56">
       <canvas id="analytics-chart" aria-label="Clicks per day over the last 30 days"></canvas>
@@ -36,7 +36,7 @@
   </div>
 
   <div class="mt-6 grid gap-6 sm:grid-cols-2">
-    <div class="rt-card">
+    <div class="vn-card">
       <h2 class="subheading text-ink">Devices</h2>
       <ul class="flex flex-col gap-2">
         {% for name, count in devices.items %}
@@ -51,7 +51,7 @@
     </div>
 
     {% if show_countries %}
-    <div class="rt-card">
+    <div class="vn-card">
       <h2 class="subheading text-ink">Countries</h2>
       <ul class="flex flex-col gap-2">
         {% for row in countries %}

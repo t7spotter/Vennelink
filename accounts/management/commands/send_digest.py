@@ -1,7 +1,7 @@
 """Weekly digest email: 7-day link activity for opted-in users.
 
 Cron (Mondays 09:00):
-    0 9 * * 1 cd /srv/retie && .venv/bin/python manage.py send_digest
+    0 9 * * 1 cd /srv/vennelink && .venv/bin/python manage.py send_digest
 Docker:
     0 9 * * 1 docker compose run --rm app python manage.py send_digest
 """
@@ -46,7 +46,7 @@ class Command(BaseCommand):
             lines = [
                 f"Hi {user.username},",
                 "",
-                "Your Retie week:",
+                "Your Vennelink week:",
             ]
             for link, count in top:
                 title = link.title or f"/{link.code}"
@@ -55,7 +55,7 @@ class Command(BaseCommand):
             lines.append(f"Open your dashboard: {settings.SITE_URL}/dashboard/")
 
             mail.send_mail(
-                subject=f"Retie weekly digest: {total} clicks",
+                subject=f"Vennelink weekly digest: {total} clicks",
                 message="\n".join(lines),
                 from_email=None,  # DEFAULT_FROM_EMAIL
                 recipient_list=[user.email],

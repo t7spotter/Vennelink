@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Delete account — Retie{% endblock %}
+{% block title %}Delete account — Vennelink{% endblock %}
 
 {% block body %}
 <div class="mx-auto max-w-xl px-4 py-10 sm:px-6">
-  <a href="{% url 'profile' %}" class="rt-btn rt-btn-quiet -ml-3 mb-6">
+  <a href="{% url 'profile' %}" class="vn-btn vn-btn-quiet -ml-3 mb-6">
     <i data-lucide="arrow-left" class="h-4 w-4"></i> Back to profile
   </a>
 
-  <div class="rt-card">
+  <div class="vn-card">
     <h1 class="heading text-ink">Delete your account?</h1>
     <p class="body-sm text-ink">
       This permanently removes <span class="font-semibold">{{ request.user.username }}</span> and everything under it:
@@ -20,17 +20,17 @@
     </ul>
     <p class="body-sm text-ink-soft">Short codes are freed immediately; anyone could register them again. There is no undo.</p>
 
-    <div class="rt-notice rt-notice-danger">
-      <i data-lucide="octagon-alert" class="rt-notice-icon h-5 w-5"></i>
-      <div class="rt-notice-body"><p class="rt-notice-text">This action cannot be undone.</p></div>
+    <div class="vn-notice vn-notice-danger">
+      <i data-lucide="octagon-alert" class="vn-notice-icon h-5 w-5"></i>
+      <div class="vn-notice-body"><p class="vn-notice-text">This action cannot be undone.</p></div>
     </div>
 
     <div class="flex flex-wrap gap-3">
-      <a href="{% url 'profile' %}" class="rt-btn rt-btn-secondary">Keep everything</a>
+      <a href="{% url 'profile' %}" class="vn-btn vn-btn-secondary">Keep everything</a>
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="confirm_deletion" value="on">
-        <button type="submit" class="rt-btn rt-btn-danger">Delete account permanently</button>
+        <button type="submit" class="vn-btn vn-btn-danger">Delete account permanently</button>
       </form>
     </div>
   </div>

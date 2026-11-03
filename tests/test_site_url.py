@@ -7,14 +7,8 @@ import os
 import subprocess
 import sys
 
-BAD_ENV = {
-    "SITE_URL": "127.0.0.1:8000",
-    "DATABASE_URL": "postgres://postgres:postgres@localhost:5432/test_shortener",
-}
-GOOD_ENV = {
-    "SITE_URL": "https://links.example.com",
-    "DATABASE_URL": "postgres://postgres:postgres@localhost:5432/test_shortener",
-}
+BAD_ENV = {"SITE_URL": "127.0.0.1:8000"}
+GOOD_ENV = {"SITE_URL": "https://links.example.com"}
 
 
 def run_check(site_url: str):

@@ -18,7 +18,7 @@
     {% endif %}
     {% if link.tags.all %}
       <div class="mt-1.5 flex flex-wrap gap-1">
-        {% for tag in link.tags.all %}<span class="rt-tag h-5 bg-mist px-2 text-[11px]">{{ tag.name }}</span>{% endfor %}
+        {% for tag in link.tags.all %}<span class="vn-tag h-5 bg-mist px-2 text-[11px]">{{ tag.name }}</span>{% endfor %}
       </div>
     {% endif %}
   </td>
@@ -34,13 +34,13 @@
   </td>
   <td class="px-4 py-3.5">
     {% if link.status == 'active' %}
-      <span class="rt-tag rt-tag-success"><span class="rt-tag-dot"></span>Active</span>
+      <span class="vn-tag vn-tag-success"><span class="vn-tag-dot"></span>Active</span>
     {% elif link.status == 'scheduled' %}
-      <span class="rt-tag rt-tag-violet" title="{{ link.goes_live_at }}">Scheduled</span>
+      <span class="vn-tag vn-tag-violet" title="{{ link.goes_live_at }}">Scheduled</span>
     {% elif link.status == 'expired' %}
-      <span class="rt-tag rt-tag-warning"><span class="rt-tag-dot"></span>Expired</span>
+      <span class="vn-tag vn-tag-warning"><span class="vn-tag-dot"></span>Expired</span>
     {% else %}
-      <span class="rt-tag">Inactive</span>
+      <span class="vn-tag">Inactive</span>
     {% endif %}
   </td>
   <td class="px-4 py-3.5 text-right">

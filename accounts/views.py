@@ -22,7 +22,7 @@ import segno
 
 from links.views import rate_limited
 
-from .forms import RegisterForm, RetieLoginForm
+from .forms import RegisterForm, VennelinkLoginForm
 from .oauth import google_client, oauth_available, user_from_google_claims
 
 LOGIN_LIMIT = rate_limited("login", limit=25, window_seconds=300)
@@ -57,7 +57,7 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
     if request.method == "POST":
-        form = RetieLoginForm(request, data=request.POST)
+        form = VennelinkLoginForm(request, data=request.POST)
         if form.is_valid():
             user = form.get_user()
             two = getattr(user, "two_factor", None)
@@ -68,7 +68,7 @@ def login_view(request):
             auth_login(request, user)
             return redirect(request.GET.get("next") or "dashboard")
     else:
-        form = RetieLoginForm()
+        form = VennelinkLoginForm()
     return render(request, "registration/login.html", {"form": form, "google_oauth": oauth_available()})
 
 
@@ -237,7 +237,7 @@ def _use_recovery(user, raw: str) -> bool:
 def _otpauth_url(user, secret: str) -> str:
     return pyotp.TOTP(secret).provisioning_uri(
         name=user.username,
-        issuer_name="Retie",
+        issuer_name="Vennelink",
     )
 
 
@@ -486,7 +486,7 @@ def export_data(request):
     response = HttpResponse(
         json.dumps(document, indent=1), content_type="application/json"
     )
-    response["Content-Disposition"] = 'attachment; filename="retie-account-export.json"'
+    response["Content-Disposition"] = 'attachment; filename="vennelink-account-export.json"'
     return response
 
 

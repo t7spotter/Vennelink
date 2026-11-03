@@ -40,7 +40,7 @@ def test_initialize_handshake(client, token):
     assert response.status_code == 200
     result = response.json()["result"]
     assert result["protocolVersion"] == "2025-03-26"
-    assert result["serverInfo"]["name"] == "retie"
+    assert result["serverInfo"]["name"] == "vennelink"
     assert "tools" in result["capabilities"]
 
 

@@ -5,12 +5,12 @@
 
 {% block body %}
 <div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-  <a href="{% url 'dashboard' %}" class="rt-btn rt-btn-quiet -ml-3 mb-6">
+  <a href="{% url 'dashboard' %}" class="vn-btn vn-btn-quiet -ml-3 mb-6">
     <i data-lucide="arrow-left" class="h-4 w-4"></i> Back to dashboard
   </a>
 
   <!-- Link summary header -->
-  <div class="rt-card">
+  <div class="vn-card">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="min-w-0">
         <h1 class="heading text-ink">
@@ -24,21 +24,21 @@
       </div>
       <div class="flex items-center gap-2">
         <a href="{% if bots %}{% url 'link_analytics' link.code %}{% else %}{% url 'link_analytics' link.code %}?bots=1{% endif %}"
-           class="rt-btn rt-btn-sm rt-btn-secondary"
+           class="vn-btn vn-btn-sm vn-btn-secondary"
            title="{% if bots %}Hide known bot clicks{% else %}Include known bot clicks{% endif %}">
           <i data-lucide="{% if bots %}bot-off{% else %}bot{% endif %}" class="h-4 w-4"></i>
           {% if bots %}Bots shown{% else %}Include bots{% endif %}
-          {% if bot_clicks %}<span class="rt-tab-count">{{ bot_clicks }}</span>{% endif %}
+          {% if bot_clicks %}<span class="vn-tab-count">{{ bot_clicks }}</span>{% endif %}
         </a>
         <a href="{% url 'link_analytics_csv' link.code %}"
-           class="rt-btn rt-btn-sm rt-btn-secondary"
+           class="vn-btn vn-btn-sm vn-btn-secondary"
            title="Download this link's analytics as CSV">
           <i data-lucide="download" class="h-4 w-4"></i> CSV
         </a>
-        <button type="button" data-copy="{{ link.short_url }}" class="rt-btn rt-btn-sm rt-btn-secondary">
+        <button type="button" data-copy="{{ link.short_url }}" class="vn-btn vn-btn-sm vn-btn-secondary">
           <i data-lucide="copy" class="h-4 w-4"></i> Copy
         </button>
-        <a href="{% url 'link_edit' link.code %}" class="rt-btn rt-btn-sm rt-btn-secondary">
+        <a href="{% url 'link_edit' link.code %}" class="vn-btn vn-btn-sm vn-btn-secondary">
           <i data-lucide="pencil" class="h-4 w-4"></i> Edit
         </a>
       </div>
@@ -47,34 +47,34 @@
 
   <!-- Stat cards -->
   <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <div class="rt-card">
+    <div class="vn-card">
       <p class="caption text-ink-soft">Total clicks</p>
       <p class="mt-1 font-mono text-[26px] font-medium tracking-tight text-ink">{{ total_clicks }}</p>
     </div>
-    <div class="rt-card">
+    <div class="vn-card">
       <p class="caption text-ink-soft">Clicks, 30 days</p>
       <p class="mt-1 font-mono text-[26px] font-medium tracking-tight text-ink">{{ total_clicks_30 }}</p>
     </div>
-    <div class="rt-card">
+    <div class="vn-card">
       <p class="caption text-ink-soft">Status</p>
       <p class="mt-2">
         {% if link.status == 'active' %}
-        <span class="rt-tag rt-tag-success"><span class="rt-tag-dot"></span>Active</span>
+        <span class="vn-tag vn-tag-success"><span class="vn-tag-dot"></span>Active</span>
         {% elif link.status == 'expired' %}
-        <span class="rt-tag rt-tag-warning"><span class="rt-tag-dot"></span>Expired</span>
+        <span class="vn-tag vn-tag-warning"><span class="vn-tag-dot"></span>Expired</span>
         {% else %}
-        <span class="rt-tag">Inactive</span>
+        <span class="vn-tag">Inactive</span>
         {% endif %}
       </p>
     </div>
-    <div class="rt-card">
+    <div class="vn-card">
       <p class="caption text-ink-soft">Created</p>
       <p class="mt-1 body-lg font-medium text-ink">{{ link.created_at|naturaltime }}</p>
     </div>
   </div>
 
   <!-- Chart -->
-  <div class="rt-card mt-6">
+  <div class="vn-card mt-6">
     <h2 class="subheading text-ink">Clicks over the last 30 days</h2>
     <div class="mt-4 h-56">
       <canvas id="analytics-chart" aria-label="Clicks per day over the last 30 days"></canvas>
@@ -84,7 +84,7 @@
 
   <div class="mt-6 grid gap-6 lg:grid-cols-2">
     <!-- Referrers -->
-    <div class="rt-card">
+    <div class="vn-card">
       <h2 class="subheading text-ink">Top referrers</h2>
       {% if referrers %}
       <ul class="flex flex-col gap-3">
@@ -106,7 +106,7 @@
     </div>
 
     <!-- Countries -->
-    <div class="rt-card">
+    <div class="vn-card">
       <h2 class="subheading text-ink">Countries</h2>
       {% if countries %}
       <ul class="flex flex-col gap-3">
@@ -132,7 +132,7 @@
     </div>
 
     <!-- Devices -->
-    <div class="rt-card">
+    <div class="vn-card">
       <h2 class="subheading text-ink">Devices</h2>
       {% if devices %}
       <ul class="flex flex-col gap-3">
@@ -155,7 +155,7 @@
 
     {% if link.variant_b %}
     <!-- A/B variants -->
-    <div class="rt-card">
+    <div class="vn-card">
       <h2 class="subheading text-ink">A/B split test</h2>
       <ul class="flex flex-col gap-3">
         <li>
@@ -183,18 +183,18 @@
   </div>
 
   <!-- Recently clicked -->
-  <div class="rt-card mt-6">
+  <div class="vn-card mt-6">
     <h2 class="subheading text-ink">Recent clicks</h2>
     {% if recent_clicks %}
     <ul class="flex flex-col">
       {% for click in recent_clicks %}
-      <li class="rt-row">
-        <span class="rt-row-main">
-          <span class="rt-row-title">{% if click.referrer %}{{ click.referrer|cut:'https://'|cut:'http://'|truncatechars:40 }}{% else %}Direct{% endif %}</span>
+      <li class="vn-row">
+        <span class="vn-row-main">
+          <span class="vn-row-title">{% if click.referrer %}{{ click.referrer|cut:'https://'|cut:'http://'|truncatechars:40 }}{% else %}Direct{% endif %}</span>
         </span>
         <span class="flex shrink-0 items-center gap-3">
-          <span class="rt-tag h-5 px-2 text-[11px]">{{ click.device }}</span>
-          <time class="rt-row-meta" datetime="{{ click.created_at|date:'c' }}">{{ click.created_at|naturaltime }}</time>
+          <span class="vn-tag h-5 px-2 text-[11px]">{{ click.device }}</span>
+          <time class="vn-row-meta" datetime="{{ click.created_at|date:'c' }}">{{ click.created_at|naturaltime }}</time>
         </span>
       </li>
       {% endfor %}

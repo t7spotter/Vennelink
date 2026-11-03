@@ -12,7 +12,7 @@ import urllib.request
 
 TIMEOUT_SECONDS = 10
 
-USER_AGENT_TEMPLATE = "Retie link-health checker (+{site_url})"
+USER_AGENT_TEMPLATE = "Vennelink link-health checker (+{site_url})"
 
 
 class Disabled(RuntimeError):

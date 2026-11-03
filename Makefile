@@ -4,7 +4,7 @@ VENV ?= .venv
 PYTHON = $(VENV)/bin/python
 PIP = $(VENV)/bin/pip
 
-.PHONY: deps migrate test css check server
+.PHONY: deps migrate test css check server front
 
 deps:
 	$(PIP) install -r requirements-dev.txt
@@ -14,6 +14,9 @@ migrate:
 
 server:
 	$(PYTHON) manage.py runserver
+
+front:
+	cd frontend && npm run dev
 
 test:
 	$(PYTHON) -m pytest tests/

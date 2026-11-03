@@ -1,4 +1,4 @@
-"""Model Context Protocol (MCP) server for Retie.
+"""Model Context Protocol (MCP) server for Vennelink.
 
 A small, stateless implementation of the Streamable HTTP transport: a single
 endpoint (/mcp/) speaks JSON-RPC 2.0 and exposes link-management tools to
@@ -361,7 +361,7 @@ TOOLS = [
     {
         "name": "create_link",
         "description": (
-            "Create a short link on this Retie instance. Returns the short "
+            "Create a short link on this Vennelink instance. Returns the short "
             "code and full short URL. Either let a code be generated or "
             "provide a custom alias (2-31 chars: a-z, 0-9 or hyphen)."
         ),
@@ -490,10 +490,10 @@ TOOLS = [
 
 TOOLS_BY_NAME = {tool["name"]: tool for tool in TOOLS}
 
-SERVER_INFO = {"name": "retie", "title": "Retie link shortener", "version": "1.0.0"}
+SERVER_INFO = {"name": "vennelink", "title": "Vennelink link shortener", "version": "1.0.0"}
 
 INSTRUCTIONS = (
-    "Retie is a self-hosted URL shortener. Tools operate only on the links "
+    "Vennelink is a self-hosted URL shortener. Tools operate only on the links "
     "belonging to the user whose API key authenticates the session. "
     "create_link returns the ready-to-share short_url."
 )

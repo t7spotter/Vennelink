@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}API reference — Retie{% endblock %}
+{% block title %}API reference — Vennelink{% endblock %}
 
 {% block body %}
 <div class="mx-auto max-w-2xl px-4 py-12">
   <a href="{% if LANDING_ENABLED %}{% url 'landing' %}{% else %}{% url 'dashboard' %}{% endif %}"
-     class="rt-btn rt-btn-quiet -ml-3 mb-6">
+     class="vn-btn vn-btn-quiet -ml-3 mb-6">
     <i data-lucide="arrow-left" class="h-4 w-4"></i> Back to landing
   </a>
 
-  <div class="rt-card is-raised">
+  <div class="vn-card is-raised">
     <div class="flex items-start justify-between gap-4">
       <h1 class="heading text-ink">API reference</h1>
-      <span class="rt-tag rt-tag-violet">v1</span>
+      <span class="vn-tag vn-tag-violet">v1</span>
     </div>
     <p class="body-sm mt-2 text-ink-soft">
       A small REST API over everything the dashboard can do. Every endpoint needs
@@ -23,7 +23,7 @@
     <!-- ── Base URL ─────────────────────────────────────────────────── -->
     <h2 class="subheading mt-8 text-ink">Base URL</h2>
     <p class="body-sm mt-2 text-ink-soft">All endpoints below are relative to this installation:</p>
-    <pre class="rt-code mt-3">{{ SITE_URL }}/api/v1/…</pre>
+    <pre class="vn-code mt-3">{{ SITE_URL }}/api/v1/…</pre>
 
     <!-- ── Get a key ────────────────────────────────────────────────── -->
     <h2 class="subheading mt-8 text-ink">Get an API key</h2>
@@ -33,7 +33,7 @@
       by calling again, and revoked with an authenticated
       <code class="mono">DELETE</code> (or from the profile page).
     </p>
-    <pre class="rt-code mt-3"><code>curl -X POST {{ SITE_URL }}/api/v1/token/ \
+    <pre class="vn-code mt-3"><code>curl -X POST {{ SITE_URL }}/api/v1/token/ \
   -H "Content-Type: application/json" \
   -d '{"username": "you", "password": "••••••"}'
 
@@ -45,7 +45,7 @@
     <p class="body-sm mt-2 text-ink-soft">
       Send the key on every request. Both header spellings are accepted:
     </p>
-    <pre class="rt-code mt-3"><code>Authorization: Bearer &lt;api key&gt;
+    <pre class="vn-code mt-3"><code>Authorization: Bearer &lt;api key&gt;
 Authorization: Token &lt;api key&gt;</code></pre>
 
     <!-- ── Endpoints ───────────────────────────────────────────────── -->
@@ -54,7 +54,7 @@ Authorization: Token &lt;api key&gt;</code></pre>
       Links are looked up by short code, and every query is scoped to the key's
       owner — deleting a link removes its click history with it.
     </p>
-    <div class="rt-code mt-3"><table class="w-full text-left" style="white-space: normal">
+    <div class="vn-code mt-3"><table class="w-full text-left" style="white-space: normal">
       <thead>
         <tr class="caption text-ink-faint">
           <th class="pb-2 pr-3 font-medium">Method</th>
@@ -118,8 +118,8 @@ Authorization: Token &lt;api key&gt;</code></pre>
 
     <!-- ── Example ─────────────────────────────────────────────────── -->
     <h2 class="subheading mt-8 text-ink">Create a link</h2>
-    <pre class="rt-code mt-3"><code>curl -X POST {{ SITE_URL }}/api/v1/links/ \
-  -H "Authorization: Bearer $RETIE_KEY" \
+    <pre class="vn-code mt-3"><code>curl -X POST {{ SITE_URL }}/api/v1/links/ \
+  -H "Authorization: Bearer $VENNELINK_KEY" \
   -H "Content-Type: application/json" \
   -d '{"destination": "https://example.com/article", "title": "Article"}'
 

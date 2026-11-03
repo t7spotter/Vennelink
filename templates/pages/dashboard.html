@@ -6,17 +6,17 @@
   <!-- Sidebar -->
   <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-surface p-4 lg:flex">
     <a href="{% url 'dashboard' %}" class="mb-6 flex items-center gap-2 px-2 font-bold tracking-tight text-ink">
-      <img src="{% static 'img/retie-app-icon.svg' %}" alt="" class="h-8 w-8 rounded-lg">
-      Retie
+      <img src="{% static 'img/vennelink-app-icon.svg' %}" alt="" class="h-8 w-8 rounded-lg">
+      Vennelink
     </a>
     <nav class="flex flex-1 flex-col gap-1" aria-label="Main">
       <a href="{% url 'dashboard' %}" aria-current="page"
-         class="rt-nav-link"><i data-lucide="layout-dashboard" class="h-4 w-4"></i> Dashboard</a>
-      <a href="{% url 'profile' %}" class="rt-nav-link"><i data-lucide="user" class="h-4 w-4"></i> Profile</a>
-      <a href="{% url 'link_import' %}" class="rt-nav-link"><i data-lucide="upload" class="h-4 w-4"></i> Import CSV</a>
-      <a href="{% url 'link_export' %}" class="rt-nav-link"><i data-lucide="download" class="h-4 w-4"></i> Export CSV</a>
+         class="vn-nav-link"><i data-lucide="layout-dashboard" class="h-4 w-4"></i> Dashboard</a>
+      <a href="{% url 'profile' %}" class="vn-nav-link"><i data-lucide="user" class="h-4 w-4"></i> Profile</a>
+      <a href="{% url 'link_import' %}" class="vn-nav-link"><i data-lucide="upload" class="h-4 w-4"></i> Import CSV</a>
+      <a href="{% url 'link_export' %}" class="vn-nav-link"><i data-lucide="download" class="h-4 w-4"></i> Export CSV</a>
       <div class="mt-2 border-t border-line pt-3">
-        <button type="button" data-theme-toggle class="rt-nav-link">
+        <button type="button" data-theme-toggle class="vn-nav-link">
           <i data-lucide="moon-star" class="h-4 w-4"></i>
           <span data-theme-label>System</span>
         </button>
@@ -24,7 +24,7 @@
       <div class="mt-auto">
         <form method="post" action="{% url 'logout' %}">
           {% csrf_token %}
-          <button type="submit" class="rt-nav-link text-left"><i data-lucide="log-out" class="h-4 w-4"></i> Log out</button>
+          <button type="submit" class="vn-nav-link text-left"><i data-lucide="log-out" class="h-4 w-4"></i> Log out</button>
         </form>
       </div>
     </nav>
@@ -33,10 +33,10 @@
   <!-- Mobile top bar -->
   <header class="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-surface px-4 lg:hidden">
     <a href="{% url 'dashboard' %}" class="flex items-center gap-2 font-bold tracking-tight text-ink">
-      <img src="{% static 'img/retie-app-icon.svg' %}" alt="" class="h-7 w-7 rounded-lg">
-      Retie
+      <img src="{% static 'img/vennelink-app-icon.svg' %}" alt="" class="h-7 w-7 rounded-lg">
+      Vennelink
     </a>
-    <button type="button" class="rt-nav-link" data-toggle-sidebar aria-label="Toggle menu">
+    <button type="button" class="vn-nav-link" data-toggle-sidebar aria-label="Toggle menu">
       <i data-lucide="menu" class="h-5 w-5"></i>
     </button>
   </header>
@@ -47,11 +47,11 @@
       {% if messages %}
         <div class="mb-6 space-y-2">
           {% for message in messages %}
-          <div class="rt-notice {% if message.tags == 'success' %}rt-notice-success{% elif message.tags == 'error' %}rt-notice-danger{% elif message.tags == 'warning' %}rt-notice-warning{% else %}rt-notice-info{% endif %}">
+          <div class="vn-notice {% if message.tags == 'success' %}vn-notice-success{% elif message.tags == 'error' %}vn-notice-danger{% elif message.tags == 'warning' %}vn-notice-warning{% else %}vn-notice-info{% endif %}">
             <i data-lucide="{% if message.tags == 'success' %}circle-check{% elif message.tags == 'error' %}octagon-alert{% elif message.tags == 'warning' %}triangle-alert{% else %}info{% endif %}"
-               class="rt-notice-icon h-5 w-5"></i>
-            <div class="rt-notice-body">
-              <p class="rt-notice-text">{{ message }}</p>
+               class="vn-notice-icon h-5 w-5"></i>
+            <div class="vn-notice-body">
+              <p class="vn-notice-text">{{ message }}</p>
             </div>
           </div>
           {% endfor %}
@@ -60,28 +60,28 @@
 
       <!-- Stats -->
       <div class="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-6">
-        <div class="rt-card">
+        <div class="vn-card">
           <div class="flex items-center justify-between">
             <p class="caption text-ink-soft">Links</p>
             <i data-lucide="link-2" class="h-4 w-4 text-ink-faint"></i>
           </div>
           <p class="mt-1 font-mono text-[26px] font-medium tracking-tight text-ink">{{ stats.total_links }}</p>
         </div>
-        <div class="rt-card">
+        <div class="vn-card">
           <div class="flex items-center justify-between">
             <p class="caption text-ink-soft">Active</p>
             <i data-lucide="circle-check" class="h-4 w-4 text-success"></i>
           </div>
           <p class="mt-1 font-mono text-[26px] font-medium tracking-tight text-ink">{{ stats.active_links }}</p>
         </div>
-        <div class="rt-card">
+        <div class="vn-card">
           <div class="flex items-center justify-between">
             <p class="caption text-ink-soft">Total clicks</p>
             <i data-lucide="mouse-pointer-click" class="h-4 w-4 text-ink-faint"></i>
           </div>
           <p class="mt-1 font-mono text-[26px] font-medium tracking-tight text-ink">{{ stats.total_clicks }}</p>
         </div>
-        <div class="rt-card">
+        <div class="vn-card">
           <div class="flex items-center justify-between">
             <p class="caption text-ink-soft">Clicks, 14 days</p>
             <i data-lucide="trending-up" class="h-4 w-4 text-ink-faint"></i>
@@ -117,7 +117,7 @@
 
         <!-- Right column: chart + create form -->
         <aside class="flex min-w-0 flex-col gap-6">
-          <div class="rt-card">
+          <div class="vn-card">
             <h2 class="subheading text-ink">Clicks, last 14 days</h2>
             <div class="mt-4 h-40">
               <canvas id="dashboard-chart" aria-label="Clicks over the last 14 days"></canvas>
@@ -128,16 +128,16 @@
           {% include "links/_form.html" %}
 
           {% if recent_clicks %}
-          <div class="rt-card">
+          <div class="vn-card">
             <h2 class="subheading text-ink">Recent activity</h2>
             <ul class="mt-2 flex flex-col">
               {% for click in recent_clicks %}
-              <li class="rt-row">
-                <span class="rt-row-lead text-ink-faint"><i data-lucide="mouse-pointer-click" class="h-4 w-4"></i></span>
-                <div class="rt-row-main">
-                  <span class="rt-row-title truncate">/{{ click.link.code }}</span>
+              <li class="vn-row">
+                <span class="vn-row-lead text-ink-faint"><i data-lucide="mouse-pointer-click" class="h-4 w-4"></i></span>
+                <div class="vn-row-main">
+                  <span class="vn-row-title truncate">/{{ click.link.code }}</span>
                 </div>
-                <time class="rt-row-meta" datetime="{{ click.created_at.isoformat }}">{{ click.created_at|timesince }}</time>
+                <time class="vn-row-meta" datetime="{{ click.created_at.isoformat }}">{{ click.created_at|timesince }}</time>
               </li>
               {% endfor %}
             </ul>
@@ -165,8 +165,8 @@
           <p class="mt-1 text-center caption text-ink-faint">Tap the code to copy the link</p>
           <div class="mt-5 flex justify-end gap-2">
             <a id="qr-modal-download" href="#" download
-               class="rt-btn rt-btn-sm rt-btn-secondary">Download SVG</a>
-            <button type="button" data-qr-close class="rt-btn rt-btn-sm rt-btn-primary">Close</button>
+               class="vn-btn vn-btn-sm vn-btn-secondary">Download SVG</a>
+            <button type="button" data-qr-close class="vn-btn vn-btn-sm vn-btn-primary">Close</button>
           </div>
         </div>
       </dialog>

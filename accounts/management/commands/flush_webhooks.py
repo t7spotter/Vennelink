@@ -39,7 +39,7 @@ class Command(BaseCommand):
                 request = urllib.request.Request(
                     url,
                     data=row.payload.encode("utf-8"),
-                    headers={"Content-Type": "application/json", "User-Agent": "Retie-Webhook/1.0"},
+                    headers={"Content-Type": "application/json", "User-Agent": "Vennelink-Webhook/1.0"},
                     method="POST",
                 )
                 with urllib.request.urlopen(request, timeout=5) as response:

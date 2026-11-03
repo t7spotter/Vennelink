@@ -116,11 +116,11 @@
   // ---- Theme -----------------------------------------------------------
   //
   // system | light | dark, cycled by the sidebar button and chosen exactly
-  // on the profile page, stored under "retie-theme" like the design system.
+  // on the profile page, stored under "vennelink-theme" like the design system.
   // The system preference resolves to an explicit data-theme attribute so
   // token styles and Tailwind's dark: variant always agree.
 
-  var THEME_KEY = "retie-theme";
+  var THEME_KEY = "vennelink-theme";
 
   function applyTheme(pref) {
     var dark =

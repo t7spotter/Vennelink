@@ -8,6 +8,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
+
 from . import queries
 from links.models import Link
 

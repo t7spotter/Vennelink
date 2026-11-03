@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Retie — self-hosted link shortening{% endblock %}</title>
+  <title>{% block title %}Vennelink — self-hosted link shortening{% endblock %}</title>
   <meta name="csrf-token" content="{{ csrf_token }}">
   <!-- ?v bumps whenever app.css is rebuilt so browsers drop stale copies. -->
   <!-- Flatpickr's own styles load first so app.css (rebuilt below) can override them -->
@@ -17,7 +17,7 @@
     // token styles and the Tailwind dark: variant agree.
     (function () {
       try {
-        var pref = localStorage.getItem("retie-theme") || localStorage.getItem("theme") || "system";
+        var pref = localStorage.getItem("vennelink-theme") || localStorage.getItem("theme") || "system";
         if (pref !== "light" && pref !== "dark") {
           pref = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         }

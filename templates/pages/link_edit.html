@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Edit link — Retie{% endblock %}
+{% block title %}Edit link — Vennelink{% endblock %}
 
 {% block body %}
 <div class="mx-auto max-w-xl px-4 pb-16 py-10 sm:px-6">
-  <a href="{% url 'dashboard' %}" class="rt-btn rt-btn-quiet -ml-3 mb-6">
+  <a href="{% url 'dashboard' %}" class="vn-btn vn-btn-quiet -ml-3 mb-6">
     <i data-lucide="arrow-left" class="h-4 w-4"></i> Back to dashboard
   </a>
 
-  <div class="rt-card">
+  <div class="vn-card">
     <h1 class="heading text-ink">Edit link</h1>
     <p class="body-sm text-ink-soft">
       <span class="font-mono font-medium text-violet-ink">{{ link.short_url }}</span> → <span class="break-all">{{ link.destination }}</span>
@@ -19,122 +19,122 @@
 
       {% if duplicate_code %}
       <input type="hidden" name="confirm_duplicate" value="on">
-      <div class="rt-notice rt-notice-warning">
-        <i data-lucide="triangle-alert" class="rt-notice-icon h-5 w-5"></i>
-        <div class="rt-notice-body">
-          <p class="rt-notice-title">Another short link already points here</p>
-          <p class="rt-notice-text"><a href="{% url 'link_edit' duplicate_code %}" class="font-semibold text-ink underline">/{{ duplicate_code }}</a> already points to this destination. "Save changes" will now save anyway.</p>
+      <div class="vn-notice vn-notice-warning">
+        <i data-lucide="triangle-alert" class="vn-notice-icon h-5 w-5"></i>
+        <div class="vn-notice-body">
+          <p class="vn-notice-title">Another short link already points here</p>
+          <p class="vn-notice-text"><a href="{% url 'link_edit' duplicate_code %}" class="font-semibold text-ink underline">/{{ duplicate_code }}</a> already points to this destination. "Save changes" will now save anyway.</p>
         </div>
       </div>
       {% endif %}
 
       {% if form.non_field_errors %}
-      <div class="rt-notice rt-notice-danger" role="alert">{{ form.non_field_errors }}</div>
+      <div class="vn-notice vn-notice-danger" role="alert">{{ form.non_field_errors }}</div>
       {% endif %}
 
-      <div class="rt-field{% if form.destination.errors %} is-invalid{% endif %}">
-        <label for="id_destination" class="rt-field-label"><span>Destination URL</span></label>
+      <div class="vn-field{% if form.destination.errors %} is-invalid{% endif %}">
+        <label for="id_destination" class="vn-field-label"><span>Destination URL</span></label>
         <input type="text" inputmode="url" name="destination" id="id_destination" value="{{ form.destination.value|default:'' }}" required
-               class="rt-input">
+               class="vn-input">
         {% for error in form.destination.errors %}
-        <p class="rt-field-error">{{ error }}</p>
+        <p class="vn-field-error">{{ error }}</p>
         {% endfor %}
       </div>
 
       <details class="rounded-md bg-mist px-4 py-3" {% if form.variant_b.value or form.instance.variant_b %}open{% endif %}>
         <summary class="cursor-pointer select-none body-sm font-semibold text-ink">A/B split test</summary>
-        <div class="mt-3 rt-field{% if form.variant_b.errors %} is-invalid{% endif %}">
-          <label for="id_variant_b" class="rt-field-label">
+        <div class="mt-3 vn-field{% if form.variant_b.errors %} is-invalid{% endif %}">
+          <label for="id_variant_b" class="vn-field-label">
             <span>Variant B destination</span>
-            <span class="rt-field-opt">empty = no test</span>
+            <span class="vn-field-opt">empty = no test</span>
           </label>
           <input type="text" inputmode="url" name="variant_b" id="id_variant_b" value="{{ form.variant_b.value|default:'' }}"
-                 class="rt-input">
-          <p class="rt-field-hint">Variant A is the destination above. When B is set, traffic is split roughly 50/50 and clicks are counted per variant.</p>
+                 class="vn-input">
+          <p class="vn-field-hint">Variant A is the destination above. When B is set, traffic is split roughly 50/50 and clicks are counted per variant.</p>
           {% for error in form.variant_b.errors %}
-          <p class="rt-field-error">{{ error }}</p>
+          <p class="vn-field-error">{{ error }}</p>
           {% endfor %}
         </div>
       </details>
 
-      <div class="rt-field{% if form.title.errors %} is-invalid{% endif %}">
-        <label for="id_title" class="rt-field-label"><span>Title</span></label>
+      <div class="vn-field{% if form.title.errors %} is-invalid{% endif %}">
+        <label for="id_title" class="vn-field-label"><span>Title</span></label>
         <input type="text" name="title" id="id_title" value="{{ form.title.value|default:'' }}"
-               class="rt-input">
+               class="vn-input">
         {% for error in form.title.errors %}
-        <p class="rt-field-error">{{ error }}</p>
+        <p class="vn-field-error">{{ error }}</p>
         {% endfor %}
       </div>
 
-      <div class="rt-field">
-        <label for="id_notes" class="rt-field-label"><span>Private note</span></label>
-        <textarea name="notes" id="id_notes" rows="2" class="rt-input"
+      <div class="vn-field">
+        <label for="id_notes" class="vn-field-label"><span>Private note</span></label>
+        <textarea name="notes" id="id_notes" rows="2" class="vn-input"
                   placeholder="Seen only by you (e.g. 'for the newsletter, kill on Friday')">{{ form.notes.value|default:'' }}</textarea>
       </div>
 
-      <div class="rt-field{% if form.code.errors %} is-invalid{% endif %}">
-        <label for="id_code" class="rt-field-label"><span>Short code</span></label>
+      <div class="vn-field{% if form.code.errors %} is-invalid{% endif %}">
+        <label for="id_code" class="vn-field-label"><span>Short code</span></label>
         <div class="flex items-stretch overflow-hidden rounded-md border border-line-strong bg-surface transition-colors focus-within:border-violet focus-within:shadow-[var(--focus-ring)] {% if form.code.errors %}border-danger{% endif %}">
           <span class="mono-sm whitespace-nowrap border-r border-line bg-mist px-3 leading-10 text-ink-soft">{{ SITE_URL }}/</span>
           <input type="text" name="code" id="id_code" value="{{ form.code.value|default:'' }}" autocomplete="off" spellcheck="false"
                  class="w-full min-w-0 border-0 bg-transparent px-3 font-mono text-[15px] text-ink placeholder:text-ink-faint focus:shadow-none focus:outline-none">
         </div>
-        <p class="rt-field-hint">Lowercase letters, numbers, and hyphens only.</p>
+        <p class="vn-field-hint">Lowercase letters, numbers, and hyphens only.</p>
         {% for error in form.code.errors %}
-        <p class="rt-field-error">{{ error }}</p>
+        <p class="vn-field-error">{{ error }}</p>
         {% endfor %}
         {% if extra_domains %}
-        <div class="rt-field">
-          <label for="id_domain" class="rt-field-label"><span>Domain</span></label>
-          <select name="domain" id="id_domain" class="rt-input">
+        <div class="vn-field">
+          <label for="id_domain" class="vn-field-label"><span>Domain</span></label>
+          <select name="domain" id="id_domain" class="vn-input">
             <option value="">Default ({{ SITE_URL }})</option>
             {% for host in extra_domains %}
             <option value="{{ host }}" {% if form.domain.value == host %}selected{% endif %}>{{ host }}</option>
             {% endfor %}
           </select>
-          <p class="rt-field-hint">The link works only on the chosen domain.</p>
+          <p class="vn-field-hint">The link works only on the chosen domain.</p>
         </div>
         {% endif %}
       </div>
 
-      <div class="rt-field{% if form.tags.errors %} is-invalid{% endif %}">
-        <label for="id_tags" class="rt-field-label"><span>Tags</span></label>
+      <div class="vn-field{% if form.tags.errors %} is-invalid{% endif %}">
+        <label for="id_tags" class="vn-field-label"><span>Tags</span></label>
         <input type="text" name="tags" id="id_tags" value="{{ form.tags.value|default:'' }}" autocomplete="off"
                placeholder="docs, marketing"
-               class="rt-input">
-        <p class="rt-field-hint">Comma-separated labels; at most 5.</p>
+               class="vn-input">
+        <p class="vn-field-hint">Comma-separated labels; at most 5.</p>
         {% for error in form.tags.errors %}
-        <p class="rt-field-error">{{ error }}</p>
+        <p class="vn-field-error">{{ error }}</p>
         {% endfor %}
       </div>
 
-      <div class="rt-field{% if form.expires_at.errors %} is-invalid{% endif %}">
-        <label for="id_expires_at" class="rt-field-label"><span>Expires at</span></label>
+      <div class="vn-field{% if form.expires_at.errors %} is-invalid{% endif %}">
+        <label for="id_expires_at" class="vn-field-label"><span>Expires at</span></label>
         <input type="datetime-local" name="expires_at" id="id_expires_at"
                value="{% if form.expires_at.value %}{{ form.expires_at.value|date:'Y-m-d\TH:i' }}{% endif %}"
-               class="rt-input">
+               class="vn-input">
         <div class="flex items-center justify-between gap-3">
-          <p class="rt-field-hint">Leave empty for a link that never expires.</p>
+          <p class="vn-field-hint">Leave empty for a link that never expires.</p>
           <button type="button" data-clear-picker="id_expires_at"
                   class="shrink-0 caption text-ink-faint hover:text-ink-soft hover:underline">Clear</button>
         </div>
         {% for error in form.expires_at.errors %}
-        <p class="rt-field-error">{{ error }}</p>
+        <p class="vn-field-error">{{ error }}</p>
         {% endfor %}
       </div>
 
-      <div class="rt-field{% if form.goes_live_at.errors %} is-invalid{% endif %}">
-        <label for="id_goes_live_at" class="rt-field-label"><span>Goes live at</span></label>
+      <div class="vn-field{% if form.goes_live_at.errors %} is-invalid{% endif %}">
+        <label for="id_goes_live_at" class="vn-field-label"><span>Goes live at</span></label>
         <input type="datetime-local" name="goes_live_at" id="id_goes_live_at"
                value="{% if form.goes_live_at.value %}{{ form.goes_live_at.value|date:'Y-m-d\TH:i' }}{% endif %}"
-               class="rt-input">
+               class="vn-input">
         <div class="flex items-center justify-between gap-3">
-          <p class="rt-field-hint">Until then the link 404s. Leave empty to go live immediately.</p>
+          <p class="vn-field-hint">Until then the link 404s. Leave empty to go live immediately.</p>
           <button type="button" data-clear-picker="id_goes_live_at"
                   class="shrink-0 caption text-ink-faint hover:text-ink-soft hover:underline">Clear</button>
         </div>
         {% for error in form.goes_live_at.errors %}
-        <p class="rt-field-error">{{ error }}</p>
+        <p class="vn-field-error">{{ error }}</p>
         {% endfor %}
       </div>
 
@@ -161,14 +161,14 @@
       </div>
 
       <div class="border-t border-line pt-6">
-        <div class="rt-field{% if form.allowed_referrers.errors %} is-invalid{% endif %}">
-          <label for="id_allowed_referrers" class="rt-field-label"><span>Referrer allow-list</span></label>
+        <div class="vn-field{% if form.allowed_referrers.errors %} is-invalid{% endif %}">
+          <label for="id_allowed_referrers" class="vn-field-label"><span>Referrer allow-list</span></label>
           <input type="text" name="allowed_referrers" id="id_allowed_referrers" value="{{ form.allowed_referrers.value|default:'' }}"
-                 class="rt-input"
+                 class="vn-input"
                  placeholder="e.g. blog.example.com, docs.example.com">
-          <p class="rt-field-hint">Hotlink protection: when set, the link only redirects visitors whose referrer matches one of these domains (subdomains included). Direct traffic and QR scans always work.</p>
+          <p class="vn-field-hint">Hotlink protection: when set, the link only redirects visitors whose referrer matches one of these domains (subdomains included). Direct traffic and QR scans always work.</p>
           {% for error in form.allowed_referrers.errors %}
-          <p class="rt-field-error">{{ error }}</p>
+          <p class="vn-field-error">{{ error }}</p>
           {% endfor %}
         </div>
       </div>
@@ -176,36 +176,36 @@
       <div class="border-t border-line pt-6">
         <p class="label text-ink">QR code colors</p>
         <div class="mt-2 grid grid-cols-2 gap-4">
-          <div class="rt-field">
-            <label for="id_qr_dark" class="rt-field-label"><span>Dark (code)</span></label>
+          <div class="vn-field">
+            <label for="id_qr_dark" class="vn-field-label"><span>Dark (code)</span></label>
             <input type="color" name="qr_dark" id="id_qr_dark" value="{{ form.qr_dark.value|default:'#0e353c' }}"
                    class="h-10 w-full cursor-pointer rounded-md border border-line-strong bg-surface p-1">
             {% for error in form.qr_dark.errors %}
-            <p class="rt-field-error">{{ error }}</p>
+            <p class="vn-field-error">{{ error }}</p>
             {% endfor %}
           </div>
-          <div class="rt-field">
-            <label for="id_qr_light" class="rt-field-label"><span>Light (background)</span></label>
+          <div class="vn-field">
+            <label for="id_qr_light" class="vn-field-label"><span>Light (background)</span></label>
             <input type="color" name="qr_light" id="id_qr_light" value="{{ form.qr_light.value|default:'#ffffff' }}"
                    class="h-10 w-full cursor-pointer rounded-md border border-line-strong bg-surface p-1">
             {% for error in form.qr_light.errors %}
-            <p class="rt-field-error">{{ error }}</p>
+            <p class="vn-field-error">{{ error }}</p>
             {% endfor %}
           </div>
         </div>
-        <p class="rt-field-hint mt-2">Applies to the QR SVG for this link. Empty or default values use the server defaults.</p>
+        <p class="vn-field-hint mt-2">Applies to the QR SVG for this link. Empty or default values use the server defaults.</p>
       </div>
 
       <div class="border-t border-line pt-6">
-        <div class="rt-field">
-          <label for="id_password" class="rt-field-label">
+        <div class="vn-field">
+          <label for="id_password" class="vn-field-label">
             <span>Gate password</span>
-            {% if link.password_hash %}<span class="rt-tag rt-tag-warning h-5 px-2 text-[11px]">protected</span>{% endif %}
+            {% if link.password_hash %}<span class="vn-tag vn-tag-warning h-5 px-2 text-[11px]">protected</span>{% endif %}
           </label>
           <input type="password" name="password" id="id_password" autocomplete="new-password"
-                 class="rt-input"
+                 class="vn-input"
                  placeholder="{% if link.password_hash %}Leave empty to keep the current one{% else %}Optional{% endif %}">
-          <p class="rt-field-hint">Visitors must enter this once per browser session before the link redirects.</p>
+          <p class="vn-field-hint">Visitors must enter this once per browser session before the link redirects.</p>
           {% if link.password_hash %}
           <label for="id_remove_password" class="mt-1 flex cursor-pointer items-center gap-2 caption text-ink-soft">
             <input type="checkbox" name="remove_password" id="id_remove_password">
@@ -216,7 +216,7 @@
       </div>
 
       <div>
-        <button type="submit" class="rt-btn rt-btn-primary rt-btn-block">
+        <button type="submit" class="vn-btn vn-btn-primary vn-btn-block">
           Save changes{% if duplicate_code %} anyway{% endif %}
         </button>
       </div>
@@ -224,24 +224,24 @@
 
     <form method="post" action="{% url 'link_transfer' link.code %}" class="border-t border-line pt-6">
       {% csrf_token %}
-      <div class="rt-field">
-        <label for="id_new_owner" class="rt-field-label"><span>Transfer ownership</span></label>
+      <div class="vn-field">
+        <label for="id_new_owner" class="vn-field-label"><span>Transfer ownership</span></label>
         <div class="flex items-start gap-3">
           <input type="text" name="new_owner" id="id_new_owner" placeholder="username or email"
-                 class="rt-input">
-          <button type="submit" class="rt-btn rt-btn-secondary shrink-0">Transfer</button>
+                 class="vn-input">
+          <button type="submit" class="vn-btn vn-btn-secondary shrink-0">Transfer</button>
         </div>
-        <p class="rt-field-hint">Hands this link (and its history and tags) to another user on this server. You'll be asked to confirm.</p>
+        <p class="vn-field-hint">Hands this link (and its history and tags) to another user on this server. You'll be asked to confirm.</p>
       </div>
     </form>
 
     <form method="post" action="{% url 'link_delete' link.code %}" class="border-t border-line pt-6"
           onsubmit="return confirm('Delete this link and its click history?');">
       {% csrf_token %}
-      <button type="submit" class="rt-btn rt-btn-secondary text-danger">
+      <button type="submit" class="vn-btn vn-btn-secondary text-danger">
         <i data-lucide="trash-2" class="h-4 w-4"></i> Delete link
       </button>
-      <p class="mt-2 rt-field-hint">Deleting removes the link and its analytics permanently.</p>
+      <p class="mt-2 vn-field-hint">Deleting removes the link and its analytics permanently.</p>
     </form>
   </div>
 </div>

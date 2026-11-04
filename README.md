@@ -1,0 +1,646 @@
+# Vennelink — a simple, secure, self-hosted URL shortener
+
+Vennelink is a standalone URL shortener you install and operate yourself.
+Every installation is fully independent: your server, your domain, your
+database, your user accounts, your analytics. It talks to no external
+service and never phones home.
+
+**Core principles:** simple readable Django, security by design, one-command
+deployment, and no unnecessary infrastructure.
+
+## Features
+
+- **Private notes**: per-link owner-only reminders ("for the newsletter,
+  kill on Friday") — visible in the dashboard edit page, API, and MCP,
+  never on any public page.
+- **UTM builder**: optional source/medium/campaign fields on the create
+  form fold analytics parameters into the destination automatically,
+  preserving any existing query parameters and fragments.
+- **Duplicate-destination warning**: creating or editing a link to a
+  destination another of your links already points at shows a warning
+  with a "create/save anyway" confirmation step; trashed duplicates
+  don't trigger it. The API and MCP never block on duplicates.
+- **Multi-domain**: configure extra hostnames via `EXTRA_DOMAINS` and
+  pin any link to one from the create/edit form (or API/MCP). The QR
+  code and short URL use the pinned domain, and the link answers only
+  there — visiting the same code on the default host 404s.
+- **Data export & account deletion**: one click downloads everything
+  the account holds as a single JSON document (account info, links with
+  all settings and notes, and every recorded anonymous click). Account
+  deletion (profile → confirm → gone) cascades to links, analytics, API
+  keys, and sessions, and frees the short codes for reuse.
+- **Click webhooks**: set an HTTPS endpoint on your profile and every
+  recorded click is queued as an outbox row (no IP addresses in the
+  payload) and POSTed by the `flush_webhooks` management command — no
+  job queue; run it from cron. Failed deliveries retry, and are dropped
+  after 5 attempts.
+- **Ownership transfer**: hand any link — with its click history and
+  tags — to another user on the server from the edit page, username or
+  email lookup, with a confirmation step before it moves. The new owner
+  must accept implicitly by having the link appear in their dashboard.
+- **QR styling**: pick the dark and light colors of each link's QR SVG
+  (`/<code>.qr.svg`) from the edit page, or via the API/MCP — handy for
+  matching printed material. Empty values fall back to the defaults.
+- **A/B split testing**: give a link an optional variant B destination —
+  visitors go to A or B roughly 50/50 (never cached; the link ignores
+  its 301 setting while a test runs), and the analytics page and CSV
+  export count clicks per variant. Tests live entirely in one row; no
+  job queue.
+- **Scheduled activation**: give a link an optional go-live moment —
+  it 404s until then (dashboard shows a "Scheduled" badge), then starts
+  redirecting automatically. Settable on the create/edit forms, via the
+  API (`goes_live_at`), and via MCP (null clears it).
+- **Per-link referrer allow-list**: restrict a link to visitors coming
+  from approved domains (subdomains included). Direct traffic and QR
+  scans always work; blocked referrers get a 403 and no click is
+  recorded. Settable on the edit page, via the API, and via MCP.
+- **Per-link stats export**: one-click CSV download of a link's 30-day
+  daily counts plus referrer/device/country breakdowns from the
+  analytics page.
+- **Row sparklines**: each dashboard row carries a 14-day micro bar chart
+  of non-bot clicks so quiet links stand out (pure JS rendering from one
+  aggregate query — no extra chart library).
+- Short links on **your own domain** (`SITE_URL`-driven, no hardcoded domains).
+- Authenticated users only — registration, login, logout, password change,
+  password reset, profile.
+- Each user sees and manages **only their own** links and analytics.
+- Custom aliases (validated, reserved application routes protected) or
+  automatically generated cryptographically-secure short codes (`secrets`).
+- Optional titles and expiration dates. Deactivated and expired links stop
+  redirecting with a clean 404.
+- Click analytics: total clicks, 30-day churn chart, referrers, coarse device
+  categories, recent activity. **No IP addresses are stored.** Known bot
+  crawlers are flagged at click time (**bot filtering**) and excluded from
+  every metric by default (`?bots=1` on the analytics page/API, `bots=true`
+  on MCP, includes them).
+- **Per-link passwords**: a locked link shows an unlock page first; the
+  password is stored as a hash, unlocking persists per browser session, and
+  unlock attempts are rate-limited per IP (20 tries / 15 min). Unlock page
+  views never count as clicks.
+- **Session kill switch**: the profile page lists all browsers signed into
+  the account with a "sign out everywhere else" button (useful after a
+  password or 2FA change).
+- **Google sign-in (opt-in via env)**: with a client ID/secret configured,
+  login and register pages gain a "Continue with Google" button — one step
+  that signs in an existing account by its Google-verified email or
+  provisions a new one (when registration is open). TOTP 2FA still applies.
+- **Public stats pages**: opt-in per link at `/stats/<code>` — aggregate
+  totals, 30-day chart, devices, and top countries, with no login and no
+  click-level detail. A per-link "hide countries" option drops the
+  country list too for privacy-sensitive audiences.
+- **Bulk actions**: select several links on the dashboard (or the whole
+  page) and activate, deactivate, tag, or trash them in one POST. The
+  queryset is scoped to the signed-in user, so other people's links are
+  never touched.
+- **Weekly digest email**: opt in per account for a Monday email with your
+  top links and weekly non-bot clicks (cron: `manage.py send_digest`).
+- REST API at `/api/v1/` documented as OpenAPI 3 by drf-spectacular and served
+  as a live docs portal (plus MCP for agents) by apiwarden at `/api/docs/`.
+- Modern responsive UI: React 19 + Next.js (App Router, TypeScript, Tailwind
+  CSS 4) frontend served on port 3000 in development, talking to Django over
+  same-origin JSON endpoints under `/webapi/`. Django still owns auth, 2FA,
+  sessions, and every link/redirect/analytics behavior; the legacy Django
+  template pages remain as a fallback (unlock flow, error and admin pages).
+- Docker Compose deployment with PostgreSQL and Gunicorn.
+
+## Technology stack
+
+| Layer      | Choice                                              |
+|------------|-----------------------------------------------------|
+| Backend    | Python 3.12+, Django 5.2 LTS, Django REST Framework |
+| Database   | PostgreSQL (psycopg 3)                              |
+| Frontend   | React 19 + Next.js 15 (App Router, TypeScript strict, Tailwind CSS 4, chart.js, lucide-react, custom token-built date/time picker); Django session cookies + CSRF |
+| Docs       | drf-spectacular (schema) + apiwarden (docs portal, MCP) |
+| Agents     | MCP server at `/mcp/` (Streamable HTTP, API-key auth) + docs MCP at `/api/docs/mcp` |
+| Serving    | Gunicorn + WhiteNoise (static), Docker Compose      |
+| Tests      | pytest + pytest-django                              |
+| Auth       | Django auth + TOTP (pyotp); optional Google sign-in (Authlib, OIDC) |
+
+## Project layout
+
+```
+config/       settings, URLs, WSGI, the /api/ URL module
+accounts/     registration, login/logout, profile, password flows
+links/        Link model, forms, dashboard views, public redirect, REST API
+analytics/    ClickEvent model, click recording, aggregation queries
+frontend/     React app: Next.js App Router pages + components + webapi client
+templates/    Django-rendered fallback pages (unlock, errors, admin, password flows)
+static/       css (source + built), js, vendored vendor/ libraries
+tests/        pytest suite
+```
+The compiled `static/css/app.css` is committed, so local development and
+Docker deploys don't require Node unless you change the templates/CSS source.
+
+## Frontend architecture
+
+The React app lives in `frontend/` and is the user-facing UI. It talks to
+Django over the same origin:
+
+- In development, `npm run dev` serves Next.js on port 3000 — and the
+  Compose `web` service runs the same setup in production (`npm run
+  build` + `next start`, built by the Docker `web` stage). A fallback
+  rewrite in `frontend/next.config.ts` sends every unmatched path to
+  Django (`DJANGO_BACKEND_URL`, `http://app:8000` in Docker) — links, QR
+  SVGs, CSV export, admin, and the unlock flow are still served by
+  Django inside the same origin, so session cookies and CSRF simply
+  work.
+- The proxy forwards URLs to Django verbatim
+  (`skipTrailingSlashRedirect: true` in `next.config.ts`): Next must not
+  canonize trailing slashes itself, because other layers (Django admin's
+  login redirects) would re-canonicalize in turn and loop forever on
+  `?next=` re-encoding. Deep links and client code that send slash-less
+  Django paths are covered by a tiny middleware
+  (`config/proxy_middleware.py`, first in `MIDDLEWARE`) that appends the
+  slash before URL resolution — but only when the URLconf says the
+  slash-less path can't be a real route (which keeps short codes and
+  files like `*.qr.svg` intact).
+- The React client calls JSON endpoints under `/webapi/` (see
+  `webapi.py` in `links/`, `accounts/`, and `analytics/` — thin wrappers
+  around the same forms and helpers the template views use). The CSRF
+  token is read from the cookie and sent as `X-CSRFToken`; there is no
+  JWT and no secret is exposed to client JS.
+- Server components fetch Django directly via `DJANGO_BACKEND_URL`
+  (default `http://127.0.0.1:8000`).
+
+## Quick start (local development)
+
+1. **Prerequisites:** Python 3.12+, PostgreSQL, Docker (for the DB container).
+
+2. Start PostgreSQL any way you like; the quickest is:
+
+   ```bash
+   docker run -d --name vennelink-pg -e POSTGRES_PASSWORD=postgres \
+     -e POSTGRES_DB=shortener -p 5432:5432 postgres:14.4
+   ```
+
+3. Create a virtualenv and install dependencies:
+
+   ```bash
+   python3 -m venv .venv
+   .venv/bin/pip install -r requirements.txt
+   ```
+
+4. Configure the environment:
+
+   ```bash
+   cp .env.example .env     # defaults work for local dev except the password
+   # edit DB_NAME / DB_USER / DB_PASSWORD as needed (defaults: shortener/postgres/postgres)
+   ```
+
+5. Migrate and run Django:
+
+   ```bash
+   .venv/bin/python manage.py migrate
+   .venv/bin/python manage.py runserver   # API + fallback pages on :8000
+   ```
+
+6. Run the React frontend:
+
+   ```bash
+   cd frontend
+   npm install
+   npm run dev          # UI on http://localhost:3000, proxies to Django
+   ```
+
+   Visit http://localhost:3000. Register from the landing page, then use the
+   dashboard. See also `DEBUG=true` in `.env` for local error pages. Quality
+   checks for the frontend: `npm run typecheck`, `npm run lint`,
+   `npm run build` (all inside `frontend/`).
+
+7. Static files for the Django-rendered fallback pages are provided pre-built
+   (`static/css/app.css` is committed), so the Python side needs no Node
+   tooling. To rebuild that CSS after template changes:
+
+   ```bash
+   # with NodeJS installed:
+   npm install && npm run build-css
+   # or with the standalone Tailwind CLI (download for your OS from
+   # github.com/tailwindlabs/tailwindcss/releases, e.g. tailwindcss-macos-arm64):
+   curl -sL -o tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.1.8/tailwindcss-macos-arm64
+   chmod +x tailwindcss
+   ./tailwindcss -i static/css/src/input.css -o static/css/app.css --minify
+   ```
+
+8. Create an administrator:
+
+   ```bash
+   .venv/bin/python manage.py createsuperuser
+   ```
+
+## Deploying on your own server
+
+The frontend ships in Docker: the `web` service builds the React app
+(`frontend/`) and serves it with Next.js on port 3000. It proxies every
+path the React app doesn't handle — redirects, QR SVGs, CSV download,
+`/admin`, `/mcp`, the unlock flow — to the Django `app` container, so one
+origin carries the whole site with working session cookies and CSRF.
+Django itself stays internal: its `APP_PORT` (default 8000) is published
+to `127.0.0.1` on the host only, for admin/API use and debugging from the
+box itself — the React `web` service is the public origin. Point your
+reverse proxy at port 3000 and set
+`SITE_URL` + `CSRF_TRUSTED_ORIGINS` to that public URL.
+
+Assumptions: a Linux VPS or dedicated box with Docker + Docker Compose, a
+domain you control, and (for HTTPS) a reverse proxy such as nginx/Caddy.
+
+### 1. DNS
+
+Point an `A`/`AAAA` (or `CNAME`) record of your subdomain — e.g.
+`links.example.com` — at your server. Only this hostname needs to resolve;
+there is no CDN or global platform involved.
+
+### 2. Environment
+
+```bash
+scp .env.example server:/srv/vennelink/.env
+```
+
+Edit `.env` on the server:
+- `SECRET_KEY` — generate: `python3 -c "import secrets; print(secrets.token_urlsafe(50))"`
+- `ALLOWED_HOSTS=links.example.com`
+- `CSRF_TRUSTED_ORIGINS=https://links.example.com`
+- `SITE_URL=https://links.example.com`
+- `POSTGRES_PASSWORD=<strong password>`, `POSTGRES_DB=shortener`
+- Once HTTPS works: `SECURE_SSL_REDIRECT=true`, `SESSION_COOKIE_SECURE=true`,
+  `CSRF_COOKIE_SECURE=true`, `SECURE_HSTS_SECONDS=31536000`
+
+### 3. Start
+
+```bash
+docker compose up -d --build
+```
+
+The `app` container runs migrations, collects static files, then serves
+Gunicorn internally on port 8000 (published to `127.0.0.1` as
+`$APP_PORT`), while the React `web` service answers on port 3000 —
+the public origin. The database volume persists at
+`pgdata`. PostgreSQL itself is **not** exposed to the host or internet.
+
+### 4. Reverse proxy & HTTPS
+
+Docker does not provide TLS. Put a proxy in front, e.g. nginx:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name links.example.com;
+
+    # Certificates from Let's Encrypt (certbot) or any CA.
+    ssl_certificate     /etc/letsencrypt/live/links.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/links.example.com/privkey.pem;
+
+    location / {
+        proxy_pass         http://127.0.0.1:3000;  # the React web service
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Only include this if the app container is behind YOUR trusted proxy:
+        # (SECURE_PROXY_SSL_HEADER must be set in .env for Django to honour it)
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Let's Encrypt issuance is standard via `certbot --nginx`. With Caddy:
+
+```
+links.example.com {
+    reverse_proxy 127.0.0.1:3000
+}
+```
+
+When running behind a proxy you control, set
+`SECURE_PROXY_SSL_HEADER=HTTP_X_FORWARDED_PROTO,https` in `.env` — this makes
+Django trust the `X-Forwarded-Proto` header and generate correct absolute
+URLs for redirects and email links. Only do this on a proxy you operate;
+blind trust of forwarded headers would allow protocol spoofing.
+
+### 5. Custom domain
+
+Everything is driven by `.env`. To run another, independent instance on
+`go.example.org`, deploy the same code there with different
+`SITE_URL`/`ALLOWED_HOSTS`/database/`SECRET_KEY`. The two installations share
+nothing: no code-level coupling, no central accounts, no shared short codes.
+
+### 6. Migrations
+
+```bash
+docker compose exec app python manage.py migrate
+```
+
+(This runs automatically on container start; run it manually after changing
+models in a customized install.)
+
+### 7. Backups & restore
+
+```bash
+# Backup: dumps the whole DB to a timestamped file on the host
+docker compose exec postgres pg_dump -U postgres shortener > backup_$(date +%F).sql
+
+# Restore into an empty database
+docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS shortener;"
+docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE shortener;"
+docker compose exec -T postgres psql -U postgres shortener < backup_2026-10-18.sql
+
+# Off-server copy (recommended)
+scp server:/srv/vennelink/backup_2026-10-18.sql ./
+```
+
+Also back up `.env` (contains `SECRET_KEY` — losing it invalidates sessions
+and password reset tokens) or keep it in your secrets manager.
+
+Also back up `.env` (contains `SECRET_KEY` — losing it invalidates sessions
+and password reset tokens) or keep it in your secrets manager.
+
+### Link health checker (opt-in)
+
+With `LINK_HEALTH_ENABLED=true`, a scheduled job verifies each destination
+still answers and paints an OK/DOWN badge next to the link on the dashboard:
+
+```
+17 3 * * * cd /srv/vennelink && .venv/bin/python manage.py check_links --sleep 0.5
+```
+
+Security note: fetching URLs configured by *your users* from *your server*
+is a classic SSRF path — that's why the checker is opt-in and why blocked
+hostnames also apply. Enable only on single-operator installs or after
+you've accepted that trade-off; leaving it off changes nothing else.
+
+### Trash & retention
+Deleting a dashboard link moves it to **Trash** (status filter), where it
+can be restored with one click; trashed links stop existing publicly
+immediately. Purge them for good on a schedule once the retention window
+passes:
+
+```
+0 3 * * * cd /srv/vennelink && .venv/bin/python manage.py purge_trash --days 30
+```
+
+(or `docker compose run --rm app python manage.py purge_trash --days 30`).
+
+### Weekly digest email
+
+Opted-in users (profile page → "Send me the weekly digest") get an email
+every Monday with their top links and total non-bot clicks for the past
+week. Users without clicks in the week are skipped, sending nothing.
+
+Cron (Mondays 09:00):
+
+```
+0 9 * * 1 cd /srv/vennelink && .venv/bin/python manage.py send_digest
+```
+
+(or `docker compose run --rm app python manage.py send_digest`).
+
+Email delivery uses the standard `EMAIL_*` environment variables (see the
+table above); the default console backend prints the message to stdout so
+`send_digest` is safe to try before SMTP is configured.
+
+Click webhooks use the same pattern (cron every minute):
+
+```
+* * * * * cd /srv/vennelink && .venv/bin/python manage.py flush_webhooks
+```
+
+Rows without a reachable endpoint retry on the next run; after 5 failed
+attempts the payload is dropped so the outbox can never grow unbounded.
+
+### 8. Updating dependencies
+
+Pinned in `requirements.txt`. To update: bump a pin, run
+`.venv/bin/pip install -r requirements-dev.txt`, run the test suite, then
+commit the new pins. Frontend libraries are vendored under `static/vendor/`
+(record versions in the commit message; sources: htmx from
+unpkg.com/htmx.org, Chart.js from cdn.jsdelivr.net, Lucide from
+unpkg.com/lucide.org/), Flatpickr from npmjs.com/package/flatpickr (4.6.13).
+
+## Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `SECRET_KEY` | Session/CSRF signing secret; required in production |
+| `DEBUG` | Django debug flag; always `false` in production |
+| `ALLOWED_HOSTS` | Comma-separated hosts Django may serve |
+| `CSRF_TRUSTED_ORIGINS` | Comma-separated `scheme://host` origins trusted for CSRF (HTTPS setups) |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | PostgreSQL connection fields, read directly into the Django `DATABASES` object (defaults: `shortener`, `postgres`, `postgres`, `localhost`, `5432`) |
+| `SITE_URL` | Canonical public URL used to build short links — **must include the scheme** (`https://…`); startup fails otherwise |
+| `EXTRA_DOMAINS` | Comma-separated extra hostnames links can be pinned to (e.g. `go.example.org,sho.rt`); a pinned link answers **only** on its chosen domain. Add the hosts to `ALLOWED_HOSTS` and point DNS at this deployment |
+| `BLOCKED_DESTINATIONS` | Comma-separated dest hosts (with their subdomains) that may never be shortenable |
+| `LINK_HEALTH_ENABLED` | `true` enables `manage.py check_links` (destination up/down badges). Off by default — see security note |
+| `GEOIP_DB` | Path to a GeoLite2-Country `.mmdb`; click events then record the visitor country (never the IP). Unset = dormant |
+
+### CSV import / export
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/dashboard/links/export.csv` | All your links as CSV (backup / migration away easy) |
+| GET/POST | `/dashboard/links/import/` | Bulk-create from a CSV upload (bit.ly/short.io headers understood) |
+| `TIME_ZONE` | e.g. `Europe/Berlin` |
+| `SECURE_SSL_REDIRECT` | Only after HTTPS works |
+| `SECURE_HSTS_SECONDS` | e.g. 31536000 once HTTPS confirmed |
+| `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE` | `true` for HTTPS deployments |
+| `SECURE_PROXY_SSL_HEADER` | `HTTP_X_FORWARDED_PROTO,https` — **only with a trusted proxy** |
+| `EMAIL_BACKEND` | `console` (default, dev) or `django.core.mail.backends.smtp.EmailBackend` |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | SMTP settings for password reset mail |
+| `DEFAULT_FROM_EMAIL` | From address of reset emails |
+| `REGISTRATION_ENABLED` | `false` closes signups (single-operator installs) |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Optional Google sign-in (see "Google sign-in" below); both empty keeps the buttons hidden |
+| `LANDING_ENABLED` | `false` turns `/` into an app-only doorway (dashboard/login, no marketing page) |
+| `APIWARDEN_TOKEN` | Optional shared token gating `/api/docs/` (unset = public docs) |
+| `POSTGRES_DB`, `POSTGRES_PASSWORD` | Passed to the Postgres container; compose.yaml maps the same values into the app's `DB_NAME` / `DB_PASSWORD` (host overridden to the `postgres` service) |
+| `GUNICORN_WORKERS`, `APP_PORT` | Serving knobs (`APP_PORT` is `127.0.0.1`-bound) |
+| `WEB_PORT` | Host port for the public React origin (default 3000) |
+
+## API
+
+Base: `/api/v1/` — interactive documentation at `/api/docs/`, served by
+[apiwarden](https://pypi.org/project/apiwarden/) from the committed OpenAPI
+spec (`api-docs/vennelink/openapi.yaml`). The raw schema is also available at
+`/api/schema/`. Auth: session cookie (browser) or an API key.
+
+### API keys
+
+Every user can self-serve an API key with username+password — no admin step
+required:
+
+```bash
+# Obtain a key (throttled to 10/hour; same key is returned while it lives)
+KEY=$(curl -s -X POST https://links.example.com/api/v1/token/ \
+     -H 'Content-Type: application/json' \
+     -d '{"username":"alice","password":"…"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+
+# Use it — both schemes are accepted
+curl -H "Authorization: Bearer $KEY" https://links.example.com/api/v1/links/
+curl -H "Authorization: Token $KEY" https://links.example.com/api/v1/links/
+
+# Revoke it
+curl -X DELETE -H "Authorization: Bearer $KEY" https://links.example.com/api/v1/token/
+```
+
+The profile page offers the same life cycle (create → shown once → revoke).
+A key authenticates every `/api/v1/` endpoint; changing your password does
+not revoke it, so revoke explicitly via `DELETE /api/v1/token/`.
+
+The docs portal Try-it panel sends `Authorization: Bearer <key>` — paste the
+key there and calls to `SITE_URL` work from the browser.
+
+Because the docs are served from a spec file, they can also be read by agents:
+`/api/docs/mcp` is an MCP server (`list_apis`, `search_operations`,
+`get_operation`, …), and `/api/docs/index.json`, `/api/docs/llms.txt`,
+`/api/docs/types/vennelink.ts` expose the same content as data. That is why the
+spec is regenerated on container start — edit the API and the docs follow.
+After changing API code locally, refresh the spec with:
+
+```bash
+.venv/bin/python manage.py spectacular --file api-docs/vennelink/openapi.yaml
+```
+
+Optional: set `APIWARDEN_TOKEN` in `.env` to require a shared token on every
+request to `/api/docs/`; unset, the docs portal is public.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/v1/links/` | Paginated list of your links (?q=&status=&page=) |
+| POST | `/api/v1/links/` | Create a link |
+| GET/PATCH/PUT/DELETE | `/api/v1/links/{code}/` | Retrieve / update / delete |
+| POST | `/api/v1/links/{code}/activate/` and `/deactivate/` | Toggle delivery |
+| GET | `/api/v1/links/{code}/analytics/` | Click stats for one link |
+| GET | `/api/v1/stats/` | Dashboard totals |
+| GET | `/api/v1/me/` | Current profile |
+| POST / DELETE | `/api/v1/token/` | Obtain / revoke an API key |
+
+Example:
+
+```bash
+KEY=$(curl -s -X POST https://links.example.com/api/v1/token/ \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"alice","password":"…"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+
+curl -H "Authorization: Bearer $KEY" https://links.example.com/api/v1/links/ \
+     -d 'destination=https://example.com/article' -d 'code=title1'
+```
+
+(Operators can also mint a key directly with
+`.venv/bin/python manage.py drf_create_token alice`.)
+
+## MCP server (agent access)
+
+`/mcp/` implements the Model Context Protocol (Streamable HTTP transport) so
+AI agents — Claude Desktop, Claude Code, Cursor, OpenCode — can create and
+manage short links directly, with the same rules as the REST API:
+
+- **Auth is an API key**: send `Authorization: Bearer <key>` (or `Token <key>`)
+  with every request; unauthenticated requests get 401.
+- **Ownership isolation**: a key only ever sees and touches its own user's
+  links; the tools are user-scoped end to end.
+- **Same validation**: destinations must be http(s), aliases 2–31 chars of
+  a-z/0-9/hyphen, reserved aliases rejected.
+- No new dependencies — it is plain JSON-RPC 2.0 over HTTP POST.
+
+Tools exposed: `create_link`, `list_links`, `get_link`, `update_link`,
+`delete_link`, `get_link_analytics`, `get_dashboard_stats`.
+
+Client configuration (Claude Desktop / any MCP client that supports HTTP
+servers):
+
+```json
+{
+  "mcpServers": {
+    "vennelink": {
+      "type": "http",
+      "url": "https://links.example.com/mcp/",
+      "headers": { "Authorization": "Bearer YOUR_API_KEY" }
+    }
+  }
+}
+```
+
+Or with Claude Code:
+
+```bash
+claude mcp add --transport http vennelink https://links.example.com/mcp/ \
+  --header "Authorization: Bearer YOUR_API_KEY"
+```
+
+Handshake smoke test without a client:
+
+```bash
+KEY=...
+curl -X POST https://links.example.com/mcp/ \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2025-03-26"}}'
+```
+
+(A second, docs-only MCP surface lives at `/api/docs/mcp` — it exposes the
+API documentation for agents to read, never your data.)
+
+## Google sign-in (optional)
+
+Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` (from a Google
+Cloud OAuth "Web application" client) to add a **Continue with Google**
+button on the login and register pages. Create the client with these
+authorized redirect URIs (replace the host with yours, plus any localhost
+variant you develop on):
+
+```
+https://your-host/accounts/login/google/callback/
+```
+
+Behavior, in the spirit of the rest of this project:
+
+- **Login or registration in one step.** If the Google-verified email matches
+  an existing account, that account is signed in (password or not). A new
+  address gets an account provisioned with an **unusable password** — Google
+  only — and only when `REGISTRATION_ENABLED` is true.
+- **Email-verified binding.** The flow trusts the ID token's claims only after
+  Authlib validates them cryptographically (Google's published JWKS, issuer,
+  this client's `client_id` as audience, and a per-request nonce stored in the
+  server-side session). An unverified Google email is refused.
+- **2FA is still enforced.** Users with TOTP enabled must complete the second
+  factor after the Google step, exactly as with password logins.
+- Both empty values hide the buttons and make the OAuth routes bounce back to
+  the password form with a friendly message.
+
+## Login two-factor (TOTP)
+
+Every user can add a second factor on the profile page: scan the QR (Aegis,
+1Password, Google Authenticator, …), confirm one live code, and logins then
+require a 30-second TOTP code — or one of ten hashed, single-use recovery
+codes shown only at enrolment. Login throttling covers the second step
+(10 attempts / 15 min per IP+identity).
+
+Honest limitation: the TOTP secret is stored in the database in the clear
+(the same trade-off as DRF API tokens); database compromise means 2FA is
+readable there too — the protection is against leaked passwords & phishing,
+not DB-level attackers.
+
+## Tests
+
+```bash
+.venv/bin/python -m pytest tests/
+```
+
+pytest-django creates and destroys a dedicated `test_shortener` database.
+
+## Security notes & limitations (be honest about them)
+
+- **URL validation prevents malformed schemes, not malicious content.** A
+  short link can still point anywhere its owner wants; opening destinations
+  is at the visitor's own risk. There is no server-side URL fetching.
+- **Access control:** every link-management and analytics view filters by the
+  logged-in user; the site's HTML/API returns 404s for other users' codes.
+  Anonymous link creation is impossible.
+- **Cookies:** `HttpOnly`, `SameSite=Lax`; `Secure` in HTTPS deployments via env. CSRF is enforced on all unsafe requests (the React client sends `X-CSRFToken` on `/webapi/` calls).
+- **Headers:** `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  tight `Referrer-Policy`, HSTS once HTTPS is live.
+- **Rate limiting is per-worker.** Login, registration, and link creation are
+  throttled using Django's LocMem cache — the counter lives inside each
+  Gunicorn worker, so effective limits scale with the worker count, and
+  nothing survives restarts. Sufficient for a single-server install; for
+  tighter guarantees, front with a real rate limiter at the proxy.
+- **Click counts are not unique visitors.** They include bots, chat-app link
+  previews, and other automated traffic; no IP storage or fingerprinting is
+  attempted to filter them out.
+- **No telemetry, no external calls** of any kind required for core operation.
+- The redirect is a plain 302 (never cached browserside) so stats stay usable.
+- Deleting a link cascades to its click records (documented policy: analytics
+  never outlive the link they describe).

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Vennelink — self-hosted link shortening{% endblock %}</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <!-- ?v bumps whenever app.css is rebuilt so browsers drop stale copies. -->
+  <!-- Flatpickr's own styles load first so app.css (rebuilt below) can override them -->
+  <link rel="stylesheet" href="{% static 'vendor/flatpickr.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261021h">
+  <link rel="icon" href="{% static 'favicon.svg' %}?v=20261021h" type="image/svg+xml">
+  <script>
+    // Resolve the stored system/light/dark theme before first paint. The
+    // system preference always resolves to an explicit data-theme so the
+    // token styles and the Tailwind dark: variant agree.
+    (function () {
+      try {
+        var pref = localStorage.getItem("vennelink-theme") || localStorage.getItem("theme") || "system";
+        if (pref !== "light" && pref !== "dark") {
+          pref = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", pref);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body class="min-h-screen bg-paper font-sans text-ink antialiased">
+  {% block body %}{% endblock %}
+
+  <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
+  <script src="{% static 'vendor/chart.umd.min.js' %}" defer></script>
+  <script src="{% static 'vendor/lucide.min.js' %}" defer></script>
+  <script src="{% static 'vendor/flatpickr.min.js' %}" defer></script>
+  <script src="{% static 'js/app.js' %}" defer></script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Stats — /{{ link.code }}{% endblock %}
+
+{% block body %}
+<div class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+  <header class="vn-card is-raised">
+    <p class="mono-sm text-ink-soft">Public link statistics</p>
+    <h1 class="heading mt-1 text-ink">
+      {% if link.title %}{{ link.title }}{% else %}/{{ link.code }}{% endif %}
+    </h1>
+    <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div>
+        <p class="font-mono text-2xl font-medium tabular-nums text-ink">{{ total_clicks|intcomma }}</p>
+        <p class="caption text-ink-soft">Total clicks</p>
+      </div>
+      <div>
+        <p class="font-mono text-2xl font-medium tabular-nums text-ink">{{ total_clicks_30|intcomma }}</p>
+        <p class="caption text-ink-soft">Last 30 days</p>
+      </div>
+      <div>
+        <p class="font-mono text-2xl font-medium text-ink">{{ link.created_at|date:"M Y" }}</p>
+        <p class="caption text-ink-soft">Tracking since</p>
+      </div>
+    </div>
+    <p class="mt-3 caption text-ink-faint">Aggregate counts only — updated live, no personal data.</p>
+  </header>
+
+  <div class="vn-card mt-6">
+    <h2 class="subheading text-ink">Clicks over the last 30 days</h2>
+    <div class="mt-4 h-56">
+      <canvas id="analytics-chart" aria-label="Clicks per day over the last 30 days"></canvas>
+    </div>
+    {{ series|json_script:"analytics-chart-data" }}
+  </div>
+
+  <div class="mt-6 grid gap-6 sm:grid-cols-2">
+    <div class="vn-card">
+      <h2 class="subheading text-ink">Devices</h2>
+      <ul class="flex flex-col gap-2">
+        {% for name, count in devices.items %}
+        <li class="flex items-center justify-between rounded-sm bg-mist px-3 py-2">
+          <span class="body-sm capitalize text-ink">{{ name }}</span>
+          <span class="mono-sm tabular-nums text-ink-soft">{{ count }}</span>
+        </li>
+        {% empty %}
+        <li class="px-3 py-2 body-sm text-ink-soft">No clicks recorded yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    {% if show_countries %}
+    <div class="vn-card">
+      <h2 class="subheading text-ink">Countries</h2>
+      <ul class="flex flex-col gap-2">
+        {% for row in countries %}
+        <li class="flex items-center justify-between rounded-sm bg-mist px-3 py-2">
+          <span class="body-sm text-ink">{{ row.country }}</span>
+          <span class="mono-sm tabular-nums text-ink-soft">{{ row.count }}</span>
+        </li>
+        {% empty %}
+        <li class="px-3 py-2 body-sm text-ink-soft">No country data recorded yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

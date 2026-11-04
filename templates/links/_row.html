@@ -1,0 +1,110 @@
+{% load humanize %}
+<tr id="link-{{ link.code }}" class="border-b border-line/60 transition-colors last:border-0 hover:bg-mist/50">
+  <td class="w-10 px-2 py-3.5">
+    <input type="checkbox" name="bulk-code" value="{{ link.code }}" data-bulk-code
+           aria-label="Select link {{ link.code }}">
+  </td>
+  <td class="max-w-[220px] px-4 py-3.5">
+    {% if link.title %}
+      <p class="truncate label text-ink" title="{{ link.title }}">{{ link.title }}</p>
+    {% endif %}
+    <p class="truncate mt-0.5 body-sm text-ink-soft" title="{{ link.destination }}">{{ link.destination }}</p>
+    {% if link.health_status %}
+          <p class="mt-0.5 flex items-center gap-1.5 caption {% if link.health_status == 'ok' %}text-success{% else %}text-danger{% endif %}" title="{% if link.health_detail %}{{ link.health_detail }} — {% endif %}{{ link.destination }}">
+        <span class="h-1.5 w-1.5 shrink-0 rounded-full {% if link.health_status == 'ok' %}bg-success{% else %}bg-danger{% endif %}"></span>
+        {% if link.health_status == 'ok' %}Destination up{% else %}Destination down{% endif %}
+        {% if link.health_detail %}· {{ link.health_detail }}{% endif %}
+      </p>
+    {% endif %}
+    {% if link.tags.all %}
+      <div class="mt-1.5 flex flex-wrap gap-1">
+        {% for tag in link.tags.all %}<span class="vn-tag h-5 bg-mist px-2 text-[11px]">{{ tag.name }}</span>{% endfor %}
+      </div>
+    {% endif %}
+  </td>
+  <td class="max-w-[180px] px-4 py-3.5">
+    <div class="flex items-center gap-1">
+      <a href="{{ link.short_url }}" class="truncate font-medium text-violet-ink hover:underline" target="_blank" rel="noopener">{{ link.short_url }}</a>
+      <button type="button" data-copy="{{ link.short_url }}"
+              class="rounded-sm p-1 text-ink-faint hover:bg-mist hover:text-ink"
+              aria-label="Copy short URL" title="Copy short URL">
+        <i data-lucide="copy" class="h-3.5 w-3.5"></i>
+      </button>
+    </div>
+  </td>
+  <td class="px-4 py-3.5">
+    {% if link.status == 'active' %}
+      <span class="vn-tag vn-tag-success"><span class="vn-tag-dot"></span>Active</span>
+    {% elif link.status == 'scheduled' %}
+      <span class="vn-tag vn-tag-violet" title="{{ link.goes_live_at }}">Scheduled</span>
+    {% elif link.status == 'expired' %}
+      <span class="vn-tag vn-tag-warning"><span class="vn-tag-dot"></span>Expired</span>
+    {% else %}
+      <span class="vn-tag">Inactive</span>
+    {% endif %}
+  </td>
+  <td class="px-4 py-3.5 text-right">
+    <span class="mono font-medium text-ink tabular-nums">{{ link.click_count }}</span>
+    <span data-spark="{{ link.id }}" class="mt-0.5 flex h-3.5 items-end justify-end gap-px" aria-hidden="true"></span>
+  </td>
+  <td class="px-4 py-3.5 mono-sm text-ink-soft">
+    {% if link.last_click_at %}{{ link.last_click_at|naturaltime }}{% else %}—{% endif %}
+  </td>
+  <td class="px-4 py-3.5">
+    <div class="flex justify-end gap-1 text-ink-soft">
+      {% if status == 'trash' %}
+        <form method="post" action="{% url 'link_restore' link.code %}"
+              hx-post="{% url 'link_restore' link.code %}"
+              hx-target="closest tr" hx-swap="outerHTML">
+          {% csrf_token %}
+          <button type="submit" class="rounded-sm p-1.5 hover:bg-mist hover:text-success" aria-label="Restore /{{ link.code }}" title="Restore">
+            <i data-lucide="undo-2" class="h-4 w-4"></i>
+          </button>
+        </form>
+        <form method="post" action="{% url 'link_purge' link.code %}"
+              hx-post="{% url 'link_purge' link.code %}"
+              hx-target="closest tr" hx-swap="outerHTML"
+              hx-confirm="Permanently delete /{{ link.code }} and its click history?">
+          {% csrf_token %}
+          <button type="submit" class="rounded-sm p-1.5 hover:bg-coral-soft hover:text-danger" aria-label="Delete forever /{{ link.code }}" title="Delete forever">
+            <i data-lucide="trash-2" class="h-4 w-4"></i>
+          </button>
+        </form>
+      {% else %}
+        <button type="button" data-qr="{{ link.code }}" data-qr-url="{{ link.short_url }}" data-qr-src="{% url 'link_qr' link.code %}"
+                class="rounded-sm p-1.5 hover:bg-mist hover:text-ink" aria-label="QR code for /{{ link.code }}" title="QR code">
+          <i data-lucide="qr-code" class="h-4 w-4"></i>
+        </button>
+        <a href="{% url 'link_analytics' link.code %}" class="rounded-sm p-1.5 hover:bg-mist hover:text-ink" aria-label="Analytics for /{{ link.code }}" title="Analytics">
+          <i data-lucide="bar-chart-3" class="h-4 w-4"></i>
+        </a>
+        <a href="{% url 'link_edit' link.code %}" class="rounded-sm p-1.5 hover:bg-mist hover:text-ink" aria-label="Edit /{{ link.code }}" title="Edit">
+          <i data-lucide="pencil" class="h-4 w-4"></i>
+        </a>
+        <form method="post" action="{% url 'link_toggle' link.code %}"
+              hx-post="{% url 'link_toggle' link.code %}"
+              hx-target="closest tr" hx-swap="outerHTML">
+          {% csrf_token %}
+          {% if link.is_active %}
+          <button type="submit" class="rounded-sm p-1.5 hover:bg-mist hover:text-warning" aria-label="Deactivate /{{ link.code }}" title="Deactivate">
+            <i data-lucide="pause" class="h-4 w-4"></i>
+          </button>
+          {% else %}
+          <button type="submit" class="rounded-sm p-1.5 hover:bg-mist hover:text-success" aria-label="Activate /{{ link.code }}" title="Activate">
+            <i data-lucide="play" class="h-4 w-4"></i>
+          </button>
+          {% endif %}
+        </form>
+        <form method="post" action="{% url 'link_delete' link.code %}"
+              hx-post="{% url 'link_delete' link.code %}"
+              hx-target="closest tr" hx-swap="outerHTML"
+              hx-confirm="Move /{{ link.code }} to the trash?">
+          {% csrf_token %}
+          <button type="submit" class="rounded-sm p-1.5 hover:bg-coral-soft hover:text-danger" aria-label="Trash /{{ link.code }}" title="Move to trash">
+            <i data-lucide="trash-2" class="h-4 w-4"></i>
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </td>
+</tr>

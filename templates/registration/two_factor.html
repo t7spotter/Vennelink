@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Two-factor check — Vennelink{% endblock %}
+
+{% block body %}
+<div class="grid min-h-screen place-items-center px-4">
+  <div class="w-full max-w-sm">
+    <a href="{% if LANDING_ENABLED %}{% url 'landing' %}{% else %}{% url 'dashboard' %}{% endif %}"
+       class="mb-8 flex justify-center font-bold tracking-tight text-ink">
+      <img src="{% static 'img/vennelink-lockup.svg' %}" alt="Vennelink" width="170" height="51" class="h-8 w-auto dark:hidden">
+      <img src="{% static 'img/vennelink-lockup-reversed.svg' %}" alt="Vennelink" width="170" height="51" class="hidden h-8 w-auto dark:block">
+    </a>
+
+    <div class="vn-card is-raised">
+      <h1 class="heading text-ink">Two-factor check</h1>
+      <p class="body-sm text-ink-soft">
+        Enter the 6-digit code from your authenticator app.
+        {% if error %}{% endif %}
+      </p>
+
+      {% if error %}
+      <div class="vn-notice vn-notice-danger">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'two_factor' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}" class="flex flex-col gap-4" autocomplete="off">
+        {% csrf_token %}
+        <div class="vn-field">
+          <label for="id_code" class="vn-field-label"><span>Authenticator code</span></label>
+          <input id="id_code" name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autofocus
+                 placeholder="123456"
+                 class="vn-input text-center font-mono text-lg tracking-[0.4em]">
+        </div>
+        <button type="submit" class="vn-btn vn-btn-primary vn-btn-block">Verify</button>
+      </form>
+
+      <details class="border-t border-line pt-4">
+        <summary class="cursor-pointer select-none body-sm font-semibold text-ink-soft hover:text-ink">Lost your device?</summary>
+        <form method="post" class="mt-3 flex flex-col gap-3" autocomplete="off">
+          {% csrf_token %}
+          <input type="text" name="recovery" placeholder="Recovery code" required
+                 class="vn-input font-mono">
+          <button type="submit" class="vn-btn vn-btn-secondary vn-btn-block">Use a recovery code</button>
+        </form>
+      </details>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Protected link — /{{ link.code }}{% endblock %}
+
+{% block body %}
+<div class="flex min-h-screen items-center justify-center px-4">
+  <div class="vn-card is-raised w-full max-w-sm !p-8">
+    <div class="mb-6 flex flex-col items-center text-center">
+      <span class="vn-avatar vn-avatar-violet h-12 w-12 rounded-md">
+        <i data-lucide="lock" class="h-6 w-6"></i>
+      </span>
+      <h1 class="heading mt-4 text-ink">
+        This link is protected
+      </h1>
+      <p class="mono mt-2 break-all text-ink-soft">
+        /{{ link.code }}{% if link.title %} · {{ link.title }}{% endif %}
+      </p>
+    </div>
+
+    {% if messages %}
+      {% for message in messages %}
+      <div class="vn-notice vn-notice-danger mb-4">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" class="flex flex-col gap-4">
+      {% csrf_token %}
+      <div class="vn-field">
+        <label for="password" class="vn-field-label"><span>Password</span></label>
+        <input type="password" id="password" name="password" required autofocus autocomplete="current-password"
+               class="vn-input">
+      </div>
+      <button type="submit" class="vn-btn vn-btn-primary vn-btn-block">
+        Unlock and continue
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block body %}
+<div class="flex min-h-screen flex-col">
+  <!-- Header -->
+  <header class="border-b border-line bg-surface/80 backdrop-blur">
+    <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <a href="{% if LANDING_ENABLED %}{% url 'landing' %}{% else %}{% url 'dashboard' %}{% endif %}"
+         class="flex items-center font-bold tracking-tight text-ink">
+        <img src="{% static 'img/vennelink-lockup.svg' %}" alt="Vennelink" width="170" height="51" class="h-7 w-auto dark:hidden">
+        <img src="{% static 'img/vennelink-lockup-reversed.svg' %}" alt="Vennelink" width="170" height="51" class="hidden h-7 w-auto dark:block">
+      </a>
+      <nav class="flex items-center gap-2">
+        <button type="button" data-theme-toggle class="vn-nav-link" aria-label="Theme: system" title="Theme">
+          <i data-lucide="moon-star" class="h-4 w-4"></i>
+          <span data-theme-label class="hidden sm:inline">System</span>
+        </button>
+        <a href="{% url 'docs_api' %}" class="vn-nav-link hidden sm:inline">API</a>
+        <a href="{% url 'docs_mcp' %}" class="vn-nav-link hidden sm:inline">MCP</a>
+        <a href="{% url 'login' %}" class="vn-nav-link">Log in</a>
+        <a href="{% url 'register' %}" class="vn-btn vn-btn-sm vn-btn-primary">Create account</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="flex-1">
+    <!-- Hero -->
+    <section class="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pt-20">
+      <div class="grid items-center gap-12 lg:grid-cols-2">
+        <div>
+          <img src="{% static 'img/vennelink-lockup.svg' %}" alt="Vennelink" width="510" height="154"
+               class="mb-8 block h-16 w-auto dark:hidden sm:h-20">
+          <img src="{% static 'img/vennelink-lockup-reversed.svg' %}" alt="Vennelink" width="510" height="154"
+               class="mb-8 hidden h-16 w-auto dark:block sm:h-20">
+          <p class="vn-tag vn-tag-violet mb-4 h-7 px-3">
+            <span class="vn-tag-dot"></span> Self-hosted, your data, your domain
+          </p>
+          <h1 class="display -mb-1 text-4xl sm:text-5xl text-ink">
+            Own your short links.
+          </h1>
+          <p class="body-lg mt-6 max-w-lg text-ink-soft">
+            Vennelink is a privacy-conscious URL shortener you run on your own server — own domain, own database, own analytics. Simple, fast, and fully under your control.
+          </p>
+          <div class="mt-8 flex flex-wrap gap-3">
+            <a href="{% url 'register' %}" class="vn-btn vn-btn-lg vn-btn-primary">
+              <i data-lucide="rocket" class="h-4 w-4"></i> Get started free
+            </a>
+            <a href="{% url 'login' %}" class="vn-btn vn-btn-lg vn-btn-secondary">Log in</a>
+          </div>
+        </div>
+
+        <!-- Product preview: a still of the dashboard, kept intentionally static -->
+        <div class="relative">
+          <div class="pointer-events-none absolute -inset-6 rounded-lg bg-mist opacity-60" aria-hidden="true"></div>
+          <div class="vn-card is-raised relative !p-0 overflow-hidden">
+            <div class="flex items-center gap-2 border-b border-line px-4 py-3">
+              <span class="h-2.5 w-2.5 rounded-full bg-line-strong"></span>
+              <span class="h-2.5 w-2.5 rounded-full bg-line-strong"></span>
+              <span class="h-2.5 w-2.5 rounded-full bg-line-strong"></span>
+              <div class="mono-sm ml-3 flex-1 truncate rounded-full bg-mist px-3 py-1 text-center text-ink-soft">{{ SITE_URL }}</div>
+            </div>
+            <div class="grid gap-4 p-4 sm:grid-cols-3">
+              <div class="rounded-md border border-line p-3">
+                <p class="caption text-ink-faint">Links</p>
+                <p class="mono mt-1 text-lg font-medium text-ink">24</p>
+              </div>
+              <div class="rounded-md border border-line p-3">
+                <p class="caption text-ink-faint">Clicks</p>
+                <p class="mono mt-1 text-lg font-medium text-ink">1,205</p>
+              </div>
+              <div class="rounded-md border border-line p-3">
+                <p class="caption text-ink-faint">Active</p>
+                <p class="mono mt-1 text-lg font-medium text-ink">21</p>
+              </div>
+            </div>
+            <div class="flex flex-col gap-2 px-4 pb-5">
+              {% for item in preview_items %}
+              <div class="vn-row rounded-md border px-2">
+                <span class="vn-avatar vn-avatar-violet h-7 w-7 text-xs">
+                  <i data-lucide="{{ item.icon }}" class="h-3.5 w-3.5"></i>
+                </span>
+                <div class="vn-row-main">
+                  <span class="vn-row-title">{{ item.title }}</span>
+                  <span class="mono-sm truncate text-ink-faint">{{ SITE_URL }}/{{ item.code }}</span>
+                </div>
+                <span class="vn-tag vn-tag-success"><span class="vn-tag-dot"></span>active</span>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+      <h2 class="title text-center text-ink">Everything you need, nothing you don't</h2>
+      <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {% for feature in features %}
+        <div class="vn-card">
+          <span class="vn-avatar vn-avatar-violet h-10 w-10 rounded-md">
+            <i data-lucide="{{ feature.icon }}" class="h-5 w-5"></i>
+          </span>
+          <h3 class="label mt-2 text-ink">{{ feature.title }}</h3>
+          <p class="body-sm mt-1.5 text-ink-soft">{{ feature.text }}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-line bg-surface">
+    <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
+      <div class="flex items-center gap-2.5 font-bold text-ink">
+        <img src="{% static 'img/vennelink-lockup.svg' %}" alt="Vennelink" width="170" height="51" class="h-7 w-auto dark:hidden">
+        <img src="{% static 'img/vennelink-lockup-reversed.svg' %}" alt="Vennelink" width="170" height="51" class="hidden h-7 w-auto dark:block">
+      </div>
+      <p class="body-sm text-center text-ink-soft">
+        Self-hosted analytics may include bots. Click counts are not unique visitors.
+      </p>
+      <div class="flex items-center gap-4 body-sm text-ink-soft">
+        <a href="{% url 'docs_api' %}" class="hover:underline">API</a>
+        <a href="{% url 'docs_mcp' %}" class="hover:underline">MCP</a>
+        <a href="{% url 'login' %}" class="hover:underline">Log in</a>
+        <a href="{% url 'register' %}" class="hover:underline">Register</a>
+      </div>
+    </div>
+  </footer>
+</div>
+{% endblock %}

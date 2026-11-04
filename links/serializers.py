@@ -1,0 +1,205 @@
+from rest_framework import serializers
+
+from .models import Link, normalize_referrer_domains
+
+
+class ReferrerListField(serializers.Field):
+    """Accepts a comma/semicolon string OR a list of hostnames on write,
+    returns a clean list on read. Normalizing happens at read/write edges."""
+
+    def to_internal_value(self, data):
+        if isinstance(data, (list, tuple)):
+            data = ", ".join(str(item) for item in data)
+        try:
+            normalize_referrer_domains(str(data))
+        except Exception as exc:
+            raise serializers.ValidationError(str(getattr(exc, "messages", [exc])[0]))
+        return str(data)
+
+    def to_representation(self, value):
+        return [d for d in (value or "").split("\n") if d]
+
+
+class LinkSerializer(serializers.ModelSerializer):
+    short_url = serializers.SerializerMethodField()
+    click_count = serializers.IntegerField(read_only=True, default=0)
+    status = serializers.CharField(read_only=True)
+    last_click_at = serializers.DateTimeField(read_only=True)
+    tags = serializers.SerializerMethodField()
+    # Write-only gate password: `password` sets a new hash, `remove_password`
+    # clears one. Reads never expose whether a link is protected.
+    password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, trim_whitespace=True
+    )
+    remove_password = serializers.BooleanField(write_only=True, required=False)
+    # Referrer allow-list: write with a comma/semicolon string or a list;
+    # always reads back as a clean list.
+    allowed_referrers = ReferrerListField(required=False, allow_null=True)
+
+    def _validate_hex_color(self, value, field_label):
+        import re
+
+        value = (value or "").strip()
+        if not value:
+            return ""
+        if not re.fullmatch(r"#?[0-9a-fA-F]{6}", value):
+            raise serializers.ValidationError(
+                f"{field_label}: use a 6-digit hex color like #0e353c."
+            )
+        return f"#{value.lstrip('#').lower()}"
+
+    class Meta:
+        model = Link
+        fields = [
+            "id",
+            "code",
+            "short_url",
+            "destination",
+            "title",
+            "variant_b",
+            "is_active",
+            "expires_at",
+            "status",
+            "goes_live_at",
+            "tags",
+            "permanent",
+            "public_stats",
+            "public_hide_countries",
+            "notes",
+            "allowed_referrers",
+            "qr_dark",
+            "qr_light",
+            "domain",
+            "password",
+            "remove_password",
+            "created_at",
+            "updated_at",
+            "click_count",
+            "last_click_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+        # DRF's BooleanField defaults to False, which would silently create
+        # *inactive* links when is_active is omitted. Mirror the model default.
+        extra_kwargs = {"is_active": {"default": True}, "permanent": {"default": False}, "public_stats": {"default": False}, "public_hide_countries": {"default": False}}
+
+    def get_tags(self, obj: Link) -> list:
+        return list(obj.tags.order_by("name").values_list("name", flat=True))
+
+    def create(self, validated_data):
+        password = validated_data.pop("password", "") or ""
+        remove = validated_data.pop("remove_password", False)
+        allowed = validated_data.pop("allowed_referrers", None)
+        link = super().create(validated_data)
+        self._apply_password(link, password, remove)
+        self._apply_referrers(link, allowed)
+        return link
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", "") or ""
+        remove = validated_data.pop("remove_password", False)
+        allowed = validated_data.pop("allowed_referrers", None)
+        link = super().update(instance, validated_data)
+        self._apply_password(link, password, remove)
+        self._apply_referrers(link, allowed)
+        return link
+
+    @staticmethod
+    def _apply_password(link: Link, password: str, remove: bool) -> None:
+        from django.contrib.auth.hashers import make_password
+
+        if password:
+            link.password_hash = make_password(password)
+        elif remove:
+            link.password_hash = ""
+        else:
+            return
+        link.save(update_fields=["password_hash", "updated_at"])
+
+    @staticmethod
+    def _apply_referrers(link: Link, raw: str | None) -> None:
+        from .models import normalize_referrer_domains
+
+        if raw is None:
+            return
+        link.allowed_referrers = "\n".join(normalize_referrer_domains(raw or ""))
+        link.save(update_fields=["allowed_referrers", "updated_at"])
+
+    def get_short_url(self, obj: Link) -> str:
+        return obj.short_url
+
+    def validate_destination(self, value):
+        from .models import validate_destination
+
+        return validate_destination(value)
+
+    def validate_qr_dark(self, value):
+        return self._validate_hex_color(value, "qr_dark")
+
+    def validate_qr_light(self, value):
+        return self._validate_hex_color(value, "qr_light")
+
+    def validate_domain(self, value):
+        from django.conf import settings
+
+        from urllib.parse import urlsplit
+
+        value = (value or "").strip().lower()
+        if not value:
+            return ""
+        default_host = (urlsplit(settings.SITE_URL).hostname or "").lower()
+        if value != default_host and value not in settings.EXTRA_DOMAINS:
+            raise serializers.ValidationError(
+                "domain must be one of EXTRA_DOMAINS (or the SITE_URL host)."
+            )
+        return value
+
+    def validate_code(self, value):
+        from .models import validate_alias
+
+        code = (value or "").strip().lower()
+        if not code:
+            return ""
+        return validate_alias(code)
+
+    def validate_expires_at(self, value):
+        from django.utils import timezone
+
+        if value and value <= timezone.now():
+            raise serializers.ValidationError("Expiration must be in the future.")
+        return value
+
+
+class ClickPointSerializer(serializers.Serializer):
+    """One day of a clicks-over-time series."""
+
+    date = serializers.DateField()
+    clicks = serializers.IntegerField()
+
+
+class ReferrerSerializer(serializers.Serializer):
+    referrer = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class LinkAnalyticsResponseSerializer(serializers.Serializer):
+    link = LinkSerializer()
+    total_clicks = serializers.IntegerField()
+    clicks_over_time = ClickPointSerializer(many=True)
+    referrers = ReferrerSerializer(many=True)
+    devices = serializers.DictField(child=serializers.IntegerField())
+
+
+class DashboardStatsSerializer(serializers.Serializer):
+    total_links = serializers.IntegerField()
+    active_links = serializers.IntegerField()
+    total_clicks = serializers.IntegerField()
+    clicks_last_30_days = serializers.IntegerField()
+    clicks_over_time = ClickPointSerializer(many=True)
+    last_click = serializers.DateTimeField(allow_null=True)
+
+
+class ProfileSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    email = serializers.EmailField()
+    date_joined = serializers.DateTimeField()
+    has_api_token = serializers.BooleanField()

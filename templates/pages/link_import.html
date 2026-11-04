@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Import links — Vennelink{% endblock %}
+
+{% block body %}
+  <main class="mx-auto max-w-3xl px-4 pb-16 py-10 sm:px-6">
+    <div class="flex items-center justify-between gap-4">
+      <h1 class="title text-ink">Import links</h1>
+      <a href="{% url 'link_export' %}" class="caption font-semibold text-violet-ink hover:underline">
+        Export your links as CSV
+      </a>
+    </div>
+
+    {% if error %}
+      <div class="vn-notice vn-notice-danger mt-6">
+        <i data-lucide="octagon-alert" class="vn-notice-icon h-5 w-5"></i>
+        <div class="vn-notice-body"><p class="vn-notice-text">{{ error }}</p></div>
+      </div>
+    {% endif %}
+
+    {% if result %}
+      <div class="vn-notice vn-notice-success mt-6">
+        <i data-lucide="circle-check" class="vn-notice-icon h-5 w-5"></i>
+        <div class="vn-notice-body"><p class="vn-notice-text">Imported {{ result.created }} of {{ result.total }} rows.</p></div>
+      </div>
+      {% if result.failed %}
+        <div class="vn-notice vn-notice-warning mt-4">
+          <i data-lucide="triangle-alert" class="vn-notice-icon h-5 w-5"></i>
+          <div class="vn-notice-body">
+            <p class="vn-notice-title">{{ result.failed|length }} row{{ result.failed|length|pluralize }} not imported</p>
+            <ul class="vn-notice-text list-inside list-disc">
+              {% for row, message in result.failed %}
+                <li>Row {{ row }} — {{ message }}</li>
+              {% endfor %}
+            </ul>
+            {% if result.hidden_errors %}
+              <p class="vn-notice-text">…and {{ result.hidden_errors }} more.</p>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+      <a href="{% url 'dashboard' %}" class="vn-btn vn-btn-primary mt-6">Back to dashboard</a>
+    {% else %}
+      <form method="post" enctype="multipart/form-data" class="vn-card mt-6">
+        {% csrf_token %}
+        <div class="vn-field">
+          <label for="file" class="vn-field-label"><span>CSV file</span></label>
+          <input id="file" name="file" type="file" accept=".csv,text/csv" required
+                 class="block w-full rounded-md border border-line-strong bg-mist px-3 py-2.5 body-sm text-ink file:cursor-pointer file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-1.5 file:caption file:font-semibold file:text-on-action" />
+          <p class="vn-field-hint">
+            The first column with a <code>destination</code>/<code>long url</code> header is the destination;
+            optional <code>alias</code>/<code>short url</code> and <code>title</code> columns are used too.
+            A bit.ly/short.io export in its original shape works as-is. Files without a header row are
+            treated as one destination URL per line. At most {{ MAX_IMPORT_ROWS }} rows per upload.
+          </p>
+        </div>
+        <button type="submit" class="vn-btn vn-btn-primary">Import</button>
+      </form>
+    {% endif %}
+  </main>
+{% endblock %}

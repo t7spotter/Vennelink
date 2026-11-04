@@ -1,0 +1,40 @@
+services:
+  app:
+    image: reg2.sijaam.com/dev/backend/vennelink_back
+    container_name: vennelink_backend
+    restart: unless-stopped
+    env_file:
+      - ./env/.env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: shortener_db
+      DB_USER: shortener_user
+      DB_PASSWORD: shortener_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8010:8000"
+    volumes:
+      - static:/app/staticfiles
+    networks:
+      - vennelink
+
+  web:
+    image: reg2.sijaam.com/dev/backend/vennelink_web
+    container_name: vennelink_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DJANGO_BACKEND_URL: http://app:8000
+    depends_on:
+      - app
+    ports:
+      - "3010:3000"
+    networks:
+      - vennelink
+
+  postgres:
+    image: reg1.sijaam.com/devops/base/postgres:17
+    container_name: vennelink

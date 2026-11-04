@@ -1,0 +1,423 @@
+stages:
+  - validate
+  - build
+  - deploy
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - when: never
+
+variables:
+  DOCKER_HOST: "tcp://$RUNNER1"
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: "overlay2"
+
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_RETRIES: "10"
+  PIP_TIMEOUT: "120"
+  PIP_INDEX_URL: "https://pypi.org/simple"
+
+validate:
+  stage: validate
+  image: reg1.sijaam.com/devops/base/python:3.12-slim
+
+  services:
+    - name: reg1.sijaam.com/devops/base/postgres:17-alpine
+      alias: postgres
+
+  variables:
+    POSTGRES_DB: "shortener_db"
+    POSTGRES_USER: "shortener_user"
+    POSTGRES_PASSWORD: "shortener_password"
+    POSTGRES_HOST: "postgres"
+    POSTGRES_PORT: "5432"
+    DB_HOST: "postgres"
+    DB_PORT: "5432"
+    DB_NAME: "shortener_db"
+    DB_USER: "shortener_user"
+    DB_PASSWORD: "shortener_password"
+    DJANGO_SETTINGS_MODULE: "config.settings"
+
+  before_script:
+    - python --version
+    - python -m pip --version
+    - python -m pip install --upgrade pip
+    - |
+      if [ -n "${PRIVATE_PYPI_INDEX_URL:-}" ]; then
+        python -m pip install \
+          --extra-index-url "$PRIVATE_PYPI_INDEX_URL" \
+          --retries 10 \
+          --timeout 120 \
+          -r requirements.txt
+      else
+        python -m pip install \
+          --retries 10 \
+          --timeout 120 \
+          -r requirements.txt
+      fi
+
+  script:
+    - python manage.py check
+    - |
+      if [ -f pytest.ini ]; then
+        python -m pip install pytest
+        python -m pytest -q
+      else
+        python manage.py test
+      fi
+
+build_dev:
+  stage: build
+  image: reg1.sijaam.com/devops/base/docker:dind
+
+  needs:
+    - validate
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+
+  script:
+    - |
+      set -eu
+
+      printf '%s' "$REG1_PASS" |
+        docker login reg1.sijaam.com \
+          -u "$REG1_USER" --password-stdin
+
+      printf '%s' "$REG2_PASS" |
+        docker login reg2.sijaam.com \
+          -u "$REG2_USER" --password-stdin
+
+      BACKEND_IMAGE="reg2.sijaam.com/dev/backend/vennelink_back"
+      FRONTEND_IMAGE="reg2.sijaam.com/dev/backend/vennelink_web"
+
+      docker build \
+        --pull \
+        -f Dockerfile \
+        -t "$BACKEND_IMAGE" \
+        .
+
+      docker build \
+        --pull \
+        -f Dockerfile \
+        --target web \
+        --build-arg DJANGO_BACKEND_URL=http://app:8000 \
+        -t "$FRONTEND_IMAGE" \
+        .
+
+      docker push "$BACKEND_IMAGE"
+      docker push "$FRONTEND_IMAGE"
+
+build_production:
+  stage: build
+  image: reg1.sijaam.com/devops/base/docker:dind
+
+  needs:
+    - validate
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+  script:
+    - |
+      set -eu
+
+      printf '%s' "$REG1_PASS" |
+        docker login reg1.sijaam.com \
+          -u "$REG1_USER" --password-stdin
+
+      printf '%s' "$REG2_PASS" |
+        docker login reg2.sijaam.com \
+          -u "$REG2_USER" --password-stdin
+
+      BACKEND_IMAGE="reg2.sijaam.com/backend/vennelink_back:${CI_COMMIT_SHA}"
+      FRONTEND_IMAGE="reg2.sijaam.com/backend/vennelink_web:${CI_COMMIT_SHA}"
+
+      docker build \
+        --pull \
+        -f Dockerfile \
+        -t "$BACKEND_IMAGE" \
+        .
+
+      docker build \
+        --pull \
+        -f Dockerfile \
+        --target web \
+        --build-arg DJANGO_BACKEND_URL=http://app:8000 \
+        -t "$FRONTEND_IMAGE" \
+        .
+
+      docker push "$BACKEND_IMAGE"
+      docker push "$FRONTEND_IMAGE"
+
+deploy_dev:
+  stage: deploy
+  image: reg1.sijaam.com/devops/base/python:3.12-slim
+
+  needs:
+    - build_dev
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+
+  resource_group: vennelink-dev
+
+  variables:
+    DEV_APP_PATH: "/opt/app/backend/vennelink"
+
+  before_script:
+    - |
+      set -eu
+
+      apt-get update
+
+      DEBIAN_FRONTEND=noninteractive apt-get install \
+        -y --no-install-recommends \
+        openssh-client ca-certificates
+
+      mkdir -p "$HOME/.ssh"
+      chmod 700 "$HOME/.ssh"
+
+      if [ -f "$DEV_KEY" ]; then
+        cp "$DEV_KEY" "$HOME/.ssh/id_ed25519"
+      else
+        printf '%s\n' "$DEV_KEY" |
+          tr -d '\r' > "$HOME/.ssh/id_ed25519"
+      fi
+
+      chmod 600 "$HOME/.ssh/id_ed25519"
+
+      ssh-keygen -y \
+        -f "$HOME/.ssh/id_ed25519" > /dev/null
+
+      if [ -n "${DEV_KNOWN_HOSTS:-}" ]; then
+        printf '%s\n' "$DEV_KNOWN_HOSTS" \
+          > "$HOME/.ssh/known_hosts"
+      else
+        ssh-keyscan \
+          -p "${DEV_SSH_PORT:-22}" \
+          -H "$DEV" > "$HOME/.ssh/known_hosts"
+      fi
+
+      chmod 600 "$HOME/.ssh/known_hosts"
+
+  script:
+    - |
+      set -eu
+
+      REMOTE="${DEV_USER:-root}@${DEV}"
+      SSH_PORT="${DEV_SSH_PORT:-22}"
+      APP_PATH="$DEV_APP_PATH"
+
+      SSH="ssh -i $HOME/.ssh/id_ed25519 -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes"
+      SCP="scp -i $HOME/.ssh/id_ed25519 -P $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes"
+
+      echo "Checking SSH connection..."
+
+      $SSH "$REMOTE" "echo SSH_CONNECTED"
+
+      echo "Preparing DEV directory..."
+
+      $SSH "$REMOTE" "mkdir -p '$APP_PATH'"
+
+      echo "Copying Docker Compose..."
+
+      $SCP \
+        docker-compose-dev.yml \
+        "$REMOTE:$APP_PATH/docker-compose-dev.yml"
+
+      echo "Registry login..."
+
+      printf '%s' "$REG2_PASS" |
+        $SSH "$REMOTE" \
+          "docker login reg2.sijaam.com -u '$REG2_USER' --password-stdin"
+
+      echo "Deploying application..."
+
+      $SSH "$REMOTE" \
+        "APP_PATH='$APP_PATH' sh -se" <<'REMOTE_SCRIPT'
+      set -eu
+
+      cd "$APP_PATH"
+
+      COMPOSE="docker-compose-dev.yml"
+
+      if [ ! -s env/.env ]; then
+        echo "ERROR: env/.env not found or empty"
+        exit 1
+      fi
+
+      if [ ! -f "$COMPOSE" ]; then
+        echo "ERROR: docker-compose-dev.yml missing"
+        exit 1
+      fi
+
+      echo "Validating Compose..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        config --quiet
+
+      echo "Pulling DEV images..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        pull app web
+
+      echo "Starting services..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        up -d --force-recreate app web postgres
+
+      echo "Container status..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        ps
+
+      echo "Deployment finished."
+
+      REMOTE_SCRIPT
+
+deploy_production:
+  stage: deploy
+  image: reg1.sijaam.com/devops/base/python:3.12-slim
+
+  needs:
+    - build_production
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+  resource_group: vennelink-production
+
+  variables:
+    PROD_APP_PATH: "/opt/app/backend/vennelink"
+
+  before_script:
+    - |
+      set -eu
+
+      apt-get update
+
+      DEBIAN_FRONTEND=noninteractive apt-get install \
+        -y --no-install-recommends \
+        openssh-client ca-certificates
+
+      mkdir -p "$HOME/.ssh"
+      chmod 700 "$HOME/.ssh"
+
+      if [ -f "$PROD_KEY" ]; then
+        cp "$PROD_KEY" "$HOME/.ssh/id_ed25519"
+      else
+        printf '%s\n' "$PROD_KEY" |
+          tr -d '\r' > "$HOME/.ssh/id_ed25519"
+      fi
+
+      chmod 600 "$HOME/.ssh/id_ed25519"
+
+      ssh-keygen -y \
+        -f "$HOME/.ssh/id_ed25519" > /dev/null
+
+      if [ -n "${PROD_KNOWN_HOSTS:-}" ]; then
+        printf '%s\n' "$PROD_KNOWN_HOSTS" \
+          > "$HOME/.ssh/known_hosts"
+      else
+        ssh-keyscan \
+          -p "${PROD_SSH_PORT:-22}" \
+          -H "$PROD" > "$HOME/.ssh/known_hosts"
+      fi
+
+      chmod 600 "$HOME/.ssh/known_hosts"
+
+  script:
+    - |
+      set -eu
+
+      REMOTE="${PROD_USER:-root}@${PROD}"
+      SSH_PORT="${PROD_SSH_PORT:-22}"
+      APP_PATH="$PROD_APP_PATH"
+
+      SSH="ssh -i $HOME/.ssh/id_ed25519 -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes"
+      SCP="scp -i $HOME/.ssh/id_ed25519 -P $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes"
+
+      echo "Checking SSH connection..."
+
+      $SSH "$REMOTE" "echo SSH_CONNECTED"
+
+      echo "Preparing Production directory..."
+
+      $SSH "$REMOTE" "mkdir -p '$APP_PATH'"
+
+      echo "Copying Docker Compose..."
+
+      $SCP \
+        docker-compose-prod.yml \
+        "$REMOTE:$APP_PATH/docker-compose-prod.yml"
+
+      echo "Registry login..."
+
+      printf '%s' "$REG2_PASS" |
+        $SSH "$REMOTE" \
+          "docker login reg2.sijaam.com -u '$REG2_USER' --password-stdin"
+
+      echo "Deploying application..."
+
+      $SSH "$REMOTE" \
+        "APP_PATH='$APP_PATH' IMAGE_TAG='$CI_COMMIT_SHA' sh -se" <<'REMOTE_SCRIPT'
+      set -eu
+
+      cd "$APP_PATH"
+
+      COMPOSE="docker-compose-prod.yml"
+      export IMAGE_TAG
+
+      if [ ! -s env/.env ]; then
+        echo "ERROR: env/.env not found or empty"
+        exit 1
+      fi
+
+      if [ ! -f "$COMPOSE" ]; then
+        echo "ERROR: docker-compose-prod.yml missing"
+        exit 1
+      fi
+
+      echo "Validating Compose..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        config --quiet
+
+      echo "Pulling Production images..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        pull app web
+
+      echo "Starting services..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        up -d --force-recreate app web postgres
+
+      echo "Container status..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        ps
+
+      echo "Deployment finished."
+
+      REMOTE_SCRIPT

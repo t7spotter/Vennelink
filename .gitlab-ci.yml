@@ -1,13 +1,12 @@
 
 stages:
-  - validate
   - build
   - deploy
 
 workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
     - when: never
 
 variables:
@@ -15,83 +14,32 @@ variables:
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: "overlay2"
 
-  PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  PIP_RETRIES: "10"
-  PIP_TIMEOUT: "120"
-  PIP_INDEX_URL: "https://pypi.org/simple"
+  # Dockerfile paths - adjust to actual repository files
+  DEV_BACK_DOCKERFILE: "devops/dockerfile-dev-back"
+  DEV_WEB_DOCKERFILE: "devops/dockerfile-dev-web"
+  PROD_BACK_DOCKERFILE: "devops/dockerfile-master-back"
+  PROD_WEB_DOCKERFILE: "devops/dockerfile-master-web"
 
-validate:
-  stage: validate
-  image: reg1.sijaam.com/devops/base/python:3.12-slim
+  DEV_BACK_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_back:dev"
+  DEV_WEB_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_web:dev"
 
-  services:
-    - name: reg1.sijaam.com/devops/base/postgres:17-alpine
-      alias: postgres
+  PROD_BACK_REPO: "reg2.sijaam.com/backend/vennelink_back"
+  PROD_WEB_REPO: "reg2.sijaam.com/backend/vennelink_web"
 
-  variables:
-    POSTGRES_DB: "shortener_db"
-    POSTGRES_USER: "shortener_user"
-    POSTGRES_PASSWORD: "shortener_password"
-    POSTGRES_HOST: "postgres"
-    POSTGRES_PORT: "5432"
+  DEV_APP_PATH: "/opt/app/backend/vennelink"
 
-    DB_HOST: "postgres"
-    DB_PORT: "5432"
-    DB_NAME: "shortener_db"
-    DB_USER: "shortener_user"
-    DB_PASSWORD: "shortener_password"
+# ==========================================
+# BUILD DEV BACKEND
+# ==========================================
 
-    DJANGO_SETTINGS_MODULE: "config.settings"
-
-  before_script:
-    - python --version
-    - python -m pip --version
-    - |
-      set -eu
-
-      echo "Checking PyPI..."
-
-      python -m pip index versions Django \
-        --index-url https://pypi.org/simple \
-        --timeout 30 \
-        --retries 3
-
-      echo "Installing requirements..."
-
-      if [ -n "${PRIVATE_PYPI_INDEX_URL:-}" ]; then
-        python -m pip install \
-          --index-url https://pypi.org/simple \
-          --extra-index-url "$PRIVATE_PYPI_INDEX_URL" \
-          --retries 10 \
-          --timeout 120 \
-          -r requirements.txt
-      else
-        python -m pip install \
-          --index-url https://pypi.org/simple \
-          --retries 10 \
-          --timeout 120 \
-          -r requirements.txt
-      fi
-
-  script:
-    - python manage.py check
-    - |
-      if [ -f pytest.ini ]; then
-        python -m pip install pytest
-        python -m pytest -q
-      else
-        python manage.py test
-      fi
-
-build_dev:
+build_dev_backend:
   stage: build
   image: reg1.sijaam.com/devops/base/docker:dind
 
-  needs:
-    - validate
-
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
+
+  resource_group: vennelink-dev-build
 
   script:
     - |
@@ -105,46 +53,149 @@ build_dev:
         docker login reg2.sijaam.com \
           -u "$REG2_USER" --password-stdin
 
-      BACKEND_IMAGE="reg2.sijaam.com/dev/backend/vennelink:dev"
-      FRONTEND_IMAGE="reg2.sijaam.com/dev/backend/vennelink-web:dev"
-
-      echo "Building Django image..."
-
-      docker build \
-        --pull \
-        -f Dockerfile \
-        -t "$BACKEND_IMAGE" \
-        .
-
-      echo "Building Next.js image..."
+      test -f "$DEV_BACK_DOCKERFILE" || {
+        echo "Missing Dockerfile: $DEV_BACK_DOCKERFILE"
+        exit 1
+      }
 
       docker build \
         --pull \
-        -f Dockerfile \
-        --target web \
-        --build-arg DJANGO_BACKEND_URL=http://app:8000 \
-        -t "$FRONTEND_IMAGE" \
+        -f "$DEV_BACK_DOCKERFILE" \
+        -t "$DEV_BACK_IMAGE" \
         .
 
-      echo "Pushing images..."
+      docker push "$DEV_BACK_IMAGE"
 
-      docker push "$BACKEND_IMAGE"
-      docker push "$FRONTEND_IMAGE"
+# ==========================================
+# BUILD DEV WEB
+# ==========================================
+
+build_dev_web:
+  stage: build
+  image: reg1.sijaam.com/devops/base/docker:dind
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+
+  resource_group: vennelink-dev-web-build
+
+  script:
+    - |
+      set -eu
+
+      printf '%s' "$REG1_PASS" |
+        docker login reg1.sijaam.com \
+          -u "$REG1_USER" --password-stdin
+
+      printf '%s' "$REG2_PASS" |
+        docker login reg2.sijaam.com \
+          -u "$REG2_USER" --password-stdin
+
+      test -f "$DEV_WEB_DOCKERFILE" || {
+        echo "Missing Dockerfile: $DEV_WEB_DOCKERFILE"
+        exit 1
+      }
+
+      docker build \
+        --pull \
+        -f "$DEV_WEB_DOCKERFILE" \
+        -t "$DEV_WEB_IMAGE" \
+        .
+
+      docker push "$DEV_WEB_IMAGE"
+
+# ==========================================
+# BUILD PRODUCTION BACKEND
+# ==========================================
+
+build_prod_backend:
+  stage: build
+  image: reg1.sijaam.com/devops/base/docker:dind
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+  script:
+    - |
+      set -eu
+
+      printf '%s' "$REG1_PASS" |
+        docker login reg1.sijaam.com \
+          -u "$REG1_USER" --password-stdin
+
+      printf '%s' "$REG2_PASS" |
+        docker login reg2.sijaam.com \
+          -u "$REG2_USER" --password-stdin
+
+      test -f "$PROD_BACK_DOCKERFILE" || {
+        echo "Missing Dockerfile: $PROD_BACK_DOCKERFILE"
+        exit 1
+      }
+
+      IMAGE="${PROD_BACK_REPO}:${CI_PIPELINE_IID}"
+
+      docker build \
+        --pull \
+        -f "$PROD_BACK_DOCKERFILE" \
+        -t "$IMAGE" \
+        .
+
+      docker push "$IMAGE"
+
+# ==========================================
+# BUILD PRODUCTION WEB
+# ==========================================
+
+build_prod_web:
+  stage: build
+  image: reg1.sijaam.com/devops/base/docker:dind
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+  script:
+    - |
+      set -eu
+
+      printf '%s' "$REG1_PASS" |
+        docker login reg1.sijaam.com \
+          -u "$REG1_USER" --password-stdin
+
+      printf '%s' "$REG2_PASS" |
+        docker login reg2.sijaam.com \
+          -u "$REG2_USER" --password-stdin
+
+      test -f "$PROD_WEB_DOCKERFILE" || {
+        echo "Missing Dockerfile: $PROD_WEB_DOCKERFILE"
+        exit 1
+      }
+
+      IMAGE="${PROD_WEB_REPO}:${CI_PIPELINE_IID}"
+
+      docker build \
+        --pull \
+        -f "$PROD_WEB_DOCKERFILE" \
+        -t "$IMAGE" \
+        .
+
+      docker push "$IMAGE"
+
+# ==========================================
+# AUTOMATIC DEV DEPLOY
+# ==========================================
 
 deploy_dev:
   stage: deploy
   image: reg1.sijaam.com/devops/base/python:3.12-slim
 
   needs:
-    - build_dev
+    - build_dev_backend
+    - build_dev_web
 
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
 
-  resource_group: vennelink-dev
-
-  variables:
-    DEV_APP_PATH: "/opt/app/backend/vennelink"
+  resource_group: vennelink-dev-deploy
 
   before_script:
     - |
@@ -171,14 +222,14 @@ deploy_dev:
       ssh-keygen -y \
         -f "$HOME/.ssh/id_ed25519" > /dev/null
 
-      if [ -n "${DEV_KNOWN_HOSTS:-}" ]; then
-        printf '%s\n' "$DEV_KNOWN_HOSTS" \
-          > "$HOME/.ssh/known_hosts"
-      else
-        ssh-keyscan \
-          -p "${DEV_SSH_PORT:-22}" \
-          -H "$DEV" > "$HOME/.ssh/known_hosts"
-      fi
+      # DEV_KNOWN_HOSTS must contain the verified SSH host key.
+      test -n "${DEV_KNOWN_HOSTS:-}" || {
+        echo "DEV_KNOWN_HOSTS is required"
+        exit 1
+      }
+
+      printf '%s\n' "$DEV_KNOWN_HOSTS" \
+        > "$HOME/.ssh/known_hosts"
 
       chmod 600 "$HOME/.ssh/known_hosts"
 
@@ -188,79 +239,80 @@ deploy_dev:
 
       REMOTE="${DEV_USER:-root}@${DEV}"
       SSH_PORT="${DEV_SSH_PORT:-22}"
-      APP_PATH="$DEV_APP_PATH"
 
-      SSH="ssh -i $HOME/.ssh/id_ed25519 -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes"
-      SCP="scp -i $HOME/.ssh/id_ed25519 -P $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes"
+      ssh_remote() {
+        ssh \
+          -i "$HOME/.ssh/id_ed25519" \
+          -p "$SSH_PORT" \
+          -o BatchMode=yes \
+          -o StrictHostKeyChecking=yes \
+          "$REMOTE" "$@"
+      }
 
       echo "Checking SSH connection..."
+      ssh_remote "echo SSH_CONNECTED"
 
-      $SSH "$REMOTE" "echo SSH_CONNECTED"
+      echo "Checking Compose file..."
+      test -s devops/docker-compose-dev.yml
 
-      echo "Preparing DEV directory..."
+      echo "Preparing project directory..."
+      ssh_remote "mkdir -p '$DEV_APP_PATH'"
 
-      $SSH "$REMOTE" "mkdir -p '$APP_PATH'"
+      echo "Copying Docker Compose only..."
+      scp \
+        -i "$HOME/.ssh/id_ed25519" \
+        -P "$SSH_PORT" \
+        -o BatchMode=yes \
+        -o StrictHostKeyChecking=yes \
+        devops/docker-compose-dev.yml \
+        "$REMOTE:$DEV_APP_PATH/docker-compose-dev.yml"
 
-      echo "Copying Docker Compose..."
-
-      $SCP \
-        docker-compose-dev.yml \
-        "$REMOTE:$APP_PATH/docker-compose-dev.yml"
-
-      echo "Registry login..."
-
+      echo "Logging in to registry..."
       printf '%s' "$REG2_PASS" |
-        $SSH "$REMOTE" \
+        ssh_remote \
           "docker login reg2.sijaam.com -u '$REG2_USER' --password-stdin"
 
-      echo "Deploying application..."
+      echo "Deploying development environment..."
 
-      $SSH "$REMOTE" \
-        "APP_PATH='$APP_PATH' sh -se" <<'REMOTE_SCRIPT'
+      ssh_remote "APP_PATH='$DEV_APP_PATH' sh -se" <<'REMOTE_SCRIPT'
       set -eu
 
       cd "$APP_PATH"
 
       COMPOSE="docker-compose-dev.yml"
 
-      if [ ! -s env/.env ]; then
-        echo "ERROR: env/.env not found or empty"
+      test -s env/.env || {
+        echo "ERROR: env/.env not found"
         exit 1
-      fi
-
-      if [ ! -f "$COMPOSE" ]; then
-        echo "ERROR: docker-compose-dev.yml missing"
-        exit 1
-      fi
-
-      echo "Validating Compose..."
+      }
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
         config --quiet
 
-      echo "Pulling DEV images..."
+      echo "Pulling backend and web images..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
         pull app web
 
-      echo "Starting application services..."
+      echo "Updating containers..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
-        up -d --force-recreate app web postgres
+        up -d --remove-orphans \
+        --force-recreate
 
-      echo "Container status..."
+      echo "Checking deployment status..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
         ps
 
-      echo "Deployment finished successfully."
-
       REMOTE_SCRIPT
+
+      echo "Development deployment completed."

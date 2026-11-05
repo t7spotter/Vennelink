@@ -8,33 +8,21 @@ workflow:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - when: never
 
+  auto_cancel:
+    on_new_commit: conservative
+
 variables:
   DOCKER_HOST: "tcp://$RUNNER1"
   DOCKER_TLS_CERTDIR: ""
-  DOCKER_DRIVER: "overlay2"
   DOCKER_BUILDKIT: "1"
 
-  # Backend Dockerfiles
-  DEV_BACK_DOCKERFILE: "devops/dockerfile-dev"
-  PROD_BACK_DOCKERFILE: "devops/dockerfile-master"
+  DEV_APP_PATH: "/opt/app/backend/vennelink"
 
-  # Dedicated frontend Dockerfile
-  WEB_DOCKERFILE: "frontend/Dockerfile"
-
-  # Development images
   DEV_BACK_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_back:dev"
   DEV_WEB_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_web:dev"
 
-  # Production repositories
   PROD_BACK_REPO: "reg2.sijaam.com/backend/vennelink_back"
   PROD_WEB_REPO: "reg2.sijaam.com/backend/vennelink_web"
-
-  # DEV server
-  DEV_APP_PATH: "/opt/app/backend/vennelink"
-
-# ==========================================
-# SHARED DOCKER BUILD
-# ==========================================
 
 .docker_build:
   stage: build
@@ -44,187 +32,146 @@ variables:
     - |
       set -eu
 
-      printf '%s' "$REG1_PASS" |
-        docker login reg1.sijaam.com \
-          -u "$REG1_USER" \
-          --password-stdin
-
-      printf '%s' "$REG2_PASS" |
-        docker login reg2.sijaam.com \
-          -u "$REG2_USER" \
-          --password-stdin
-
-  script:
-    - |
-      set -eu
-
-      test -f "$BUILD_DOCKERFILE" || {
-        echo "ERROR: Missing Dockerfile: $BUILD_DOCKERFILE"
-        exit 1
-      }
-
-      echo "Building $TARGET_IMAGE"
-
-      docker build \
-        --pull \
-        -f "$BUILD_DOCKERFILE" \
-        -t "$TARGET_IMAGE" \
-        "$BUILD_CONTEXT"
-
-      echo "Pushing $TARGET_IMAGE"
-
-      docker push "$TARGET_IMAGE"
-
-      echo "Image pushed successfully"
-
-# ==========================================
-# DEVELOPMENT BACKEND
-# ==========================================
-
-build_dev_backend:
-  extends: .docker_build
-
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "dev"'
-
-  variables:
-    BUILD_DOCKERFILE: "devops/dockerfile-dev"
-    BUILD_CONTEXT: "."
-    TARGET_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_back:dev"
-
-# ==========================================
-# DEVELOPMENT WEB
-# ==========================================
-
-build_dev_web:
-  extends: .docker_build
-
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "dev"'
-
-  variables:
-    BUILD_DOCKERFILE: "frontend/Dockerfile"
-    BUILD_CONTEXT: "./frontend"
-    TARGET_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_web:dev"
-
-# ==========================================
-# PRODUCTION BACKEND
-# ==========================================
-
-build_prod_backend:
-  stage: build
-  image: reg1.sijaam.com/devops/base/docker:dind
-
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-
-  before_script:
-    - |
-      set -eu
+      echo "Logging in to REG1..."
 
       printf '%s' "$REG1_PASS" |
         docker login reg1.sijaam.com \
           -u "$REG1_USER" \
           --password-stdin
 
+      echo "Logging in to REG2..."
+
       printf '%s' "$REG2_PASS" |
         docker login reg2.sijaam.com \
           -u "$REG2_USER" \
           --password-stdin
 
+build_dev:
+  extends: .docker_build
+
+  resource_group: vennelink-dev-build
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+
   script:
     - |
       set -eu
 
-      test -f "$PROD_BACK_DOCKERFILE" || {
-        echo "ERROR: Missing $PROD_BACK_DOCKERFILE"
+      DOCKERFILE="devops/dockerfile-dev"
+
+      test -f "$DOCKERFILE" || {
+        echo "ERROR: Missing $DOCKERFILE"
         exit 1
       }
 
-      IMAGE="${PROD_BACK_REPO}:${CI_PIPELINE_IID}"
+      echo "Building DEV Backend..."
 
       docker build \
         --pull \
-        -f "$PROD_BACK_DOCKERFILE" \
-        -t "$IMAGE" \
+        --target backend \
+        -f "$DOCKERFILE" \
+        -t "$DEV_BACK_IMAGE" \
         .
 
-      docker push "$IMAGE"
+      echo "Building DEV Web..."
 
-      echo "Production backend image: $IMAGE"
+      docker build \
+        --pull \
+        --target web \
+        -f "$DOCKERFILE" \
+        -t "$DEV_WEB_IMAGE" \
+        .
 
-# ==========================================
-# PRODUCTION WEB
-# ==========================================
+      echo "Pushing DEV Backend..."
 
-build_prod_web:
-  stage: build
-  image: reg1.sijaam.com/devops/base/docker:dind
+      docker push "$DEV_BACK_IMAGE"
+
+      echo "Pushing DEV Web..."
+
+      docker push "$DEV_WEB_IMAGE"
+
+      echo "DEV images pushed successfully."
+
+build_production:
+  extends: .docker_build
 
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-
-  before_script:
-    - |
-      set -eu
-
-      printf '%s' "$REG1_PASS" |
-        docker login reg1.sijaam.com \
-          -u "$REG1_USER" \
-          --password-stdin
-
-      printf '%s' "$REG2_PASS" |
-        docker login reg2.sijaam.com \
-          -u "$REG2_USER" \
-          --password-stdin
 
   script:
     - |
       set -eu
 
-      test -f "$WEB_DOCKERFILE" || {
-        echo "ERROR: Missing $WEB_DOCKERFILE"
+      DOCKERFILE="devops/dockerfile-master"
+
+      test -f "$DOCKERFILE" || {
+        echo "ERROR: Missing $DOCKERFILE"
         exit 1
       }
 
-      IMAGE="${PROD_WEB_REPO}:${CI_PIPELINE_IID}"
+      BACK_IMAGE="${PROD_BACK_REPO}:${CI_PIPELINE_IID}"
+      WEB_IMAGE="${PROD_WEB_REPO}:${CI_PIPELINE_IID}"
+
+      echo "Building Production Backend..."
 
       docker build \
         --pull \
-        -f "$WEB_DOCKERFILE" \
-        -t "$IMAGE" \
-        ./frontend
+        --target backend \
+        -f "$DOCKERFILE" \
+        -t "$BACK_IMAGE" \
+        .
 
-      docker push "$IMAGE"
+      echo "Building Production Web..."
 
-      echo "Production web image: $IMAGE"
+      docker build \
+        --pull \
+        --target web \
+        -f "$DOCKERFILE" \
+        -t "$WEB_IMAGE" \
+        .
 
-# ==========================================
-# AUTOMATIC DEVELOPMENT DEPLOY
-# ==========================================
+      echo "Pushing Production Backend..."
+
+      docker push "$BACK_IMAGE"
+
+      echo "Pushing Production Web..."
+
+      docker push "$WEB_IMAGE"
+
+      echo "Production images:"
+      echo "$BACK_IMAGE"
+      echo "$WEB_IMAGE"
+
+      echo "Build and Push completed."
+      echo "No production deployment will run."
 
 deploy_dev:
   stage: deploy
+
   image: reg1.sijaam.com/devops/base/python:3.12-slim
 
   needs:
-    - build_dev_backend
-    - build_dev_web
+    - build_dev
 
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
 
-  resource_group: vennelink-dev
+  resource_group: vennelink-dev-deploy
 
   before_script:
     - |
       set -eu
+
+      echo "Installing SSH client..."
 
       apt-get update
 
       DEBIAN_FRONTEND=noninteractive apt-get install \
         -y --no-install-recommends \
         openssh-client ca-certificates
+
+      echo "Configuring SSH..."
 
       mkdir -p "$HOME/.ssh"
       chmod 700 "$HOME/.ssh"
@@ -241,19 +188,21 @@ deploy_dev:
       ssh-keygen -y \
         -f "$HOME/.ssh/id_ed25519" > /dev/null
 
-      test -n "${DEV_KNOWN_HOSTS:-}" || {
+      if [ -n "${DEV_KNOWN_HOSTS:-}" ]; then
+        if [ -f "$DEV_KNOWN_HOSTS" ]; then
+          cp "$DEV_KNOWN_HOSTS" \
+            "$HOME/.ssh/known_hosts"
+        else
+          printf '%s\n' "$DEV_KNOWN_HOSTS" \
+            > "$HOME/.ssh/known_hosts"
+        fi
+      else
         echo "ERROR: DEV_KNOWN_HOSTS is missing"
         exit 1
-      }
-
-      if [ -f "$DEV_KNOWN_HOSTS" ]; then
-        cp "$DEV_KNOWN_HOSTS" "$HOME/.ssh/known_hosts"
-      else
-        printf '%s\n' "$DEV_KNOWN_HOSTS" \
-          > "$HOME/.ssh/known_hosts"
       fi
 
       chmod 600 "$HOME/.ssh/known_hosts"
+
 
   script:
     - |
@@ -261,6 +210,7 @@ deploy_dev:
 
       REMOTE="${DEV_USER:-root}@${DEV}"
       SSH_PORT="${DEV_SSH_PORT:-22}"
+      APP_PATH="$DEV_APP_PATH"
 
       ssh_remote() {
         ssh \
@@ -271,16 +221,19 @@ deploy_dev:
           "$REMOTE" "$@"
       }
 
-      echo "Checking SSH connection..."
-      ssh_remote "echo SSH_CONNECTED"
-
       echo "Checking source Compose..."
+
       test -s devops/docker-compose-dev.yml
 
-      echo "Preparing destination..."
-      ssh_remote "mkdir -p '$DEV_APP_PATH'"
+      echo "Checking SSH connection..."
 
-      echo "Copying Docker Compose only..."
+      ssh_remote "echo SSH_CONNECTED"
+
+      echo "Checking remote project..."
+
+      ssh_remote "test -d '$APP_PATH/env'"
+
+      echo "Uploading Docker Compose only..."
 
       scp \
         -i "$HOME/.ssh/id_ed25519" \
@@ -288,54 +241,92 @@ deploy_dev:
         -o BatchMode=yes \
         -o StrictHostKeyChecking=yes \
         devops/docker-compose-dev.yml \
-        "$REMOTE:$DEV_APP_PATH/docker-compose-dev.yml"
+        "$REMOTE:$APP_PATH/docker-compose-dev.yml"
 
-      echo "Registry login..."
+      echo "Registry login on DEV server..."
 
       printf '%s' "$REG2_PASS" |
         ssh_remote \
           "docker login reg2.sijaam.com -u '$REG2_USER' --password-stdin"
 
-      echo "Deploying DEV..."
+      echo "Running DEV deployment..."
 
       ssh_remote \
-        "APP_PATH='$DEV_APP_PATH' sh -se" <<'REMOTE_SCRIPT'
+        "APP_PATH='$APP_PATH' sh -se" <<'REMOTE_SCRIPT'
       set -eu
 
       cd "$APP_PATH"
 
       COMPOSE="docker-compose-dev.yml"
 
+      echo "Checking environment file..."
+
       test -s env/.env || {
-        echo "ERROR: env/.env missing"
+        echo "ERROR: env/.env is missing"
         exit 1
       }
 
-      test -s "$COMPOSE" || {
-        echo "ERROR: Docker Compose missing"
-        exit 1
-      }
-
-      echo "Validating Compose..."
+      echo "Validating Docker Compose..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
         config --quiet
 
-      echo "Pulling application images..."
+      echo "Pulling updated application images..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
         pull app web
 
-      echo "Updating services..."
+      echo "Starting PostgreSQL..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
-        up -d --remove-orphans --force-recreate
+        up -d postgres
+
+      echo "Deploying Django Backend..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        up -d --no-deps --force-recreate app
+
+      echo "Waiting for Backend health..."
+
+      backend_ready=0
+
+      for i in $(seq 1 30); do
+        status=$(docker inspect \
+          --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+          vennelink_backend)
+
+        if [ "$status" = "healthy" ]; then
+          backend_ready=1
+          break
+        fi
+
+        if [ "$status" = "unhealthy" ] || [ "$status" = "exited" ]; then
+          break
+        fi
+
+        sleep 5
+      done
+
+      if [ "$backend_ready" -ne 1 ]; then
+        echo "ERROR: Backend healthcheck failed"
+        docker logs vennelink_backend --tail 100
+        exit 1
+      fi
+
+      echo "Deploying Next.js Web..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        up -d --no-deps --force-recreate web
 
       echo "Checking containers..."
 
@@ -344,6 +335,33 @@ deploy_dev:
         -f "$COMPOSE" \
         ps
 
-      REMOTE_SCRIPT
+      echo "Checking frontend..."
 
-      echo "DEV deployment completed."
+      frontend_ready=0
+
+      for i in $(seq 1 20); do
+        status=$(docker inspect \
+          --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+          vennelink_frontend)
+
+        if [ "$status" = "healthy" ]; then
+          frontend_ready=1
+          break
+        fi
+
+        if [ "$status" = "unhealthy" ] || [ "$status" = "exited" ]; then
+          break
+        fi
+
+        sleep 5
+      done
+
+      if [ "$frontend_ready" -ne 1 ]; then
+        echo "ERROR: Frontend healthcheck failed"
+        docker logs vennelink_frontend --tail 100
+        exit 1
+      fi
+
+      echo "DEV deployment completed successfully."
+
+      REMOTE_SCRIPT

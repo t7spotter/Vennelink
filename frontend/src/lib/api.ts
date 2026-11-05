@@ -103,7 +103,12 @@ function readCookie(name: string): string | null {
 
 let csrfRequest: Promise<string> | null = null;
 
-/** Read the Django CSRF token from the cookie, fetching one if absent. */
+/**
+ * Resolve a usable CSRF token: read the csrftoken cookie first; if it isn't
+ * visible to JavaScript, accept the token returned in the /webapi/csrf/
+ * response body as a fallback so mutations still carry a valid header even
+ * if a deployment sets CSRF_COOKIE_HTTPONLY=true.
+ */
 export async function csrfToken(): Promise<string> {
   const existing = readCookie(CSRF_COOKIE_NAME);
   if (existing) return existing;
@@ -116,8 +121,8 @@ export async function csrfToken(): Promise<string> {
         csrfRequest = null;
       });
   }
-  await csrfRequest;
-  return readCookie(CSRF_COOKIE_NAME) || "";
+  const fromBody = await csrfRequest;
+  return fromBody || readCookie(CSRF_COOKIE_NAME) || "";
 }
 
 export interface ClientFetchInit {

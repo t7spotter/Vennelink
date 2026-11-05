@@ -53,7 +53,12 @@ def _safe_next(value: str) -> str:
 @ensure_csrf_cookie
 @require_GET
 def csrf(request):
-    """Ensure the csrftoken cookie exists (readable; HTTPONLY=false in dev)."""
+    """Ensure the csrftoken cookie exists and return the live token.
+
+    GET /webapi/csrf/ both runs ensure_csrf_cookie (so the cookie is set)
+    and echoes the current token in the JSON body, giving the React client
+    a read of the token even if a deployment sets CSRF_COOKIE_HTTPONLY.
+    """
     from django.middleware.csrf import get_token
 
     return JsonResponse({"ok": True, "token": get_token(request)})

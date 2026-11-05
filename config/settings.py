@@ -277,12 +277,14 @@ STORAGES = {
 # Security headers / HTTPS
 # These settings are safe to enable unconditionally: they cost nothing when the
 # site is served over plain HTTP locally, and protect production.
-# CSRF cookie must be readable by client JavaScript, otherwise JS-driven
-# requests cannot send the CSRF token header (demanding the token from
-# HTML meta tags is not possible for a SPA frontend). CSRF enforcement is
-# unchanged: the cookie value is simply readable, and unsafe requests
-# must still send it as X-CSRFToken.
-CSRF_COOKIE_HTTPONLY = env.bool("CSRF_COOKIE_HTTPONLY", default=True)
+# CSRF_COOKIE_HTTPONLY must be False: the React client reads the token out of
+# the csrf cookie with document.cookie and sends it back as X-CSRFToken. With
+# HttpOnly=True the cookie still travels on requests (causing the confusing
+# "cookie present but header empty" symptom), but JavaScript can never read
+# it, so every mutation fails CSRF verification with 403. This does NOT
+# weaken CSRF protection: the cookie remains origin-confined and Django
+# still rejects unsafe requests whose header/cookie pair or Origin isn't valid.
+CSRF_COOKIE_HTTPONLY = env.bool("CSRF_COOKIE_HTTPONLY", default=False)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)

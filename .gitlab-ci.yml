@@ -1,4 +1,3 @@
-
 stages:
   - build
   - deploy
@@ -13,99 +12,103 @@ variables:
   DOCKER_HOST: "tcp://$RUNNER1"
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: "overlay2"
+  DOCKER_BUILDKIT: "1"
 
-  # Dockerfile paths - adjust to actual repository files
-  DEV_BACK_DOCKERFILE: "devops/dockerfile-dev-back"
-  DEV_WEB_DOCKERFILE: "devops/dockerfile-dev-web"
-  PROD_BACK_DOCKERFILE: "devops/dockerfile-master-back"
-  PROD_WEB_DOCKERFILE: "devops/dockerfile-master-web"
+  # Backend Dockerfiles
+  DEV_BACK_DOCKERFILE: "devops/dockerfile-dev"
+  PROD_BACK_DOCKERFILE: "devops/dockerfile-master"
 
+  # Dedicated frontend Dockerfile
+  WEB_DOCKERFILE: "frontend/Dockerfile"
+
+  # Development images
   DEV_BACK_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_back:dev"
   DEV_WEB_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_web:dev"
 
+  # Production repositories
   PROD_BACK_REPO: "reg2.sijaam.com/backend/vennelink_back"
   PROD_WEB_REPO: "reg2.sijaam.com/backend/vennelink_web"
 
+  # DEV server
   DEV_APP_PATH: "/opt/app/backend/vennelink"
 
 # ==========================================
-# BUILD DEV BACKEND
+# SHARED DOCKER BUILD
+# ==========================================
+
+.docker_build:
+  stage: build
+  image: reg1.sijaam.com/devops/base/docker:dind
+
+  before_script:
+    - |
+      set -eu
+
+      printf '%s' "$REG1_PASS" |
+        docker login reg1.sijaam.com \
+          -u "$REG1_USER" \
+          --password-stdin
+
+      printf '%s' "$REG2_PASS" |
+        docker login reg2.sijaam.com \
+          -u "$REG2_USER" \
+          --password-stdin
+
+  script:
+    - |
+      set -eu
+
+      test -f "$BUILD_DOCKERFILE" || {
+        echo "ERROR: Missing Dockerfile: $BUILD_DOCKERFILE"
+        exit 1
+      }
+
+      echo "Building $TARGET_IMAGE"
+
+      docker build \
+        --pull \
+        -f "$BUILD_DOCKERFILE" \
+        -t "$TARGET_IMAGE" \
+        "$BUILD_CONTEXT"
+
+      echo "Pushing $TARGET_IMAGE"
+
+      docker push "$TARGET_IMAGE"
+
+      echo "Image pushed successfully"
+
+# ==========================================
+# DEVELOPMENT BACKEND
 # ==========================================
 
 build_dev_backend:
-  stage: build
-  image: reg1.sijaam.com/devops/base/docker:dind
+  extends: .docker_build
 
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
 
-  resource_group: vennelink-dev-build
-
-  script:
-    - |
-      set -eu
-
-      printf '%s' "$REG1_PASS" |
-        docker login reg1.sijaam.com \
-          -u "$REG1_USER" --password-stdin
-
-      printf '%s' "$REG2_PASS" |
-        docker login reg2.sijaam.com \
-          -u "$REG2_USER" --password-stdin
-
-      test -f "$DEV_BACK_DOCKERFILE" || {
-        echo "Missing Dockerfile: $DEV_BACK_DOCKERFILE"
-        exit 1
-      }
-
-      docker build \
-        --pull \
-        -f "$DEV_BACK_DOCKERFILE" \
-        -t "$DEV_BACK_IMAGE" \
-        .
-
-      docker push "$DEV_BACK_IMAGE"
+  variables:
+    BUILD_DOCKERFILE: "devops/dockerfile-dev"
+    BUILD_CONTEXT: "."
+    TARGET_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_back:dev"
 
 # ==========================================
-# BUILD DEV WEB
+# DEVELOPMENT WEB
 # ==========================================
 
 build_dev_web:
-  stage: build
-  image: reg1.sijaam.com/devops/base/docker:dind
+  extends: .docker_build
 
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
 
-  resource_group: vennelink-dev-web-build
-
-  script:
-    - |
-      set -eu
-
-      printf '%s' "$REG1_PASS" |
-        docker login reg1.sijaam.com \
-          -u "$REG1_USER" --password-stdin
-
-      printf '%s' "$REG2_PASS" |
-        docker login reg2.sijaam.com \
-          -u "$REG2_USER" --password-stdin
-
-      test -f "$DEV_WEB_DOCKERFILE" || {
-        echo "Missing Dockerfile: $DEV_WEB_DOCKERFILE"
-        exit 1
-      }
-
-      docker build \
-        --pull \
-        -f "$DEV_WEB_DOCKERFILE" \
-        -t "$DEV_WEB_IMAGE" \
-        .
-
-      docker push "$DEV_WEB_IMAGE"
+  variables:
+    BUILD_DOCKERFILE: "frontend/Dockerfile"
+    BUILD_CONTEXT: "./frontend"
+    TARGET_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_web:dev"
 
 # ==========================================
-# BUILD PRODUCTION BACKEND
+# PRODUCTION BACKEND
 # ==========================================
 
 build_prod_backend:
@@ -115,20 +118,26 @@ build_prod_backend:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
 
-  script:
+  before_script:
     - |
       set -eu
 
       printf '%s' "$REG1_PASS" |
         docker login reg1.sijaam.com \
-          -u "$REG1_USER" --password-stdin
+          -u "$REG1_USER" \
+          --password-stdin
 
       printf '%s' "$REG2_PASS" |
         docker login reg2.sijaam.com \
-          -u "$REG2_USER" --password-stdin
+          -u "$REG2_USER" \
+          --password-stdin
+
+  script:
+    - |
+      set -eu
 
       test -f "$PROD_BACK_DOCKERFILE" || {
-        echo "Missing Dockerfile: $PROD_BACK_DOCKERFILE"
+        echo "ERROR: Missing $PROD_BACK_DOCKERFILE"
         exit 1
       }
 
@@ -142,8 +151,10 @@ build_prod_backend:
 
       docker push "$IMAGE"
 
+      echo "Production backend image: $IMAGE"
+
 # ==========================================
-# BUILD PRODUCTION WEB
+# PRODUCTION WEB
 # ==========================================
 
 build_prod_web:
@@ -153,20 +164,26 @@ build_prod_web:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
 
-  script:
+  before_script:
     - |
       set -eu
 
       printf '%s' "$REG1_PASS" |
         docker login reg1.sijaam.com \
-          -u "$REG1_USER" --password-stdin
+          -u "$REG1_USER" \
+          --password-stdin
 
       printf '%s' "$REG2_PASS" |
         docker login reg2.sijaam.com \
-          -u "$REG2_USER" --password-stdin
+          -u "$REG2_USER" \
+          --password-stdin
 
-      test -f "$PROD_WEB_DOCKERFILE" || {
-        echo "Missing Dockerfile: $PROD_WEB_DOCKERFILE"
+  script:
+    - |
+      set -eu
+
+      test -f "$WEB_DOCKERFILE" || {
+        echo "ERROR: Missing $WEB_DOCKERFILE"
         exit 1
       }
 
@@ -174,14 +191,16 @@ build_prod_web:
 
       docker build \
         --pull \
-        -f "$PROD_WEB_DOCKERFILE" \
+        -f "$WEB_DOCKERFILE" \
         -t "$IMAGE" \
-        .
+        ./frontend
 
       docker push "$IMAGE"
 
+      echo "Production web image: $IMAGE"
+
 # ==========================================
-# AUTOMATIC DEV DEPLOY
+# AUTOMATIC DEVELOPMENT DEPLOY
 # ==========================================
 
 deploy_dev:
@@ -195,7 +214,7 @@ deploy_dev:
   rules:
     - if: '$CI_COMMIT_BRANCH == "dev"'
 
-  resource_group: vennelink-dev-deploy
+  resource_group: vennelink-dev
 
   before_script:
     - |
@@ -222,14 +241,17 @@ deploy_dev:
       ssh-keygen -y \
         -f "$HOME/.ssh/id_ed25519" > /dev/null
 
-      # DEV_KNOWN_HOSTS must contain the verified SSH host key.
       test -n "${DEV_KNOWN_HOSTS:-}" || {
-        echo "DEV_KNOWN_HOSTS is required"
+        echo "ERROR: DEV_KNOWN_HOSTS is missing"
         exit 1
       }
 
-      printf '%s\n' "$DEV_KNOWN_HOSTS" \
-        > "$HOME/.ssh/known_hosts"
+      if [ -f "$DEV_KNOWN_HOSTS" ]; then
+        cp "$DEV_KNOWN_HOSTS" "$HOME/.ssh/known_hosts"
+      else
+        printf '%s\n' "$DEV_KNOWN_HOSTS" \
+          > "$HOME/.ssh/known_hosts"
+      fi
 
       chmod 600 "$HOME/.ssh/known_hosts"
 
@@ -252,13 +274,14 @@ deploy_dev:
       echo "Checking SSH connection..."
       ssh_remote "echo SSH_CONNECTED"
 
-      echo "Checking Compose file..."
+      echo "Checking source Compose..."
       test -s devops/docker-compose-dev.yml
 
-      echo "Preparing project directory..."
+      echo "Preparing destination..."
       ssh_remote "mkdir -p '$DEV_APP_PATH'"
 
       echo "Copying Docker Compose only..."
+
       scp \
         -i "$HOME/.ssh/id_ed25519" \
         -P "$SSH_PORT" \
@@ -267,14 +290,16 @@ deploy_dev:
         devops/docker-compose-dev.yml \
         "$REMOTE:$DEV_APP_PATH/docker-compose-dev.yml"
 
-      echo "Logging in to registry..."
+      echo "Registry login..."
+
       printf '%s' "$REG2_PASS" |
         ssh_remote \
           "docker login reg2.sijaam.com -u '$REG2_USER' --password-stdin"
 
-      echo "Deploying development environment..."
+      echo "Deploying DEV..."
 
-      ssh_remote "APP_PATH='$DEV_APP_PATH' sh -se" <<'REMOTE_SCRIPT'
+      ssh_remote \
+        "APP_PATH='$DEV_APP_PATH' sh -se" <<'REMOTE_SCRIPT'
       set -eu
 
       cd "$APP_PATH"
@@ -282,31 +307,37 @@ deploy_dev:
       COMPOSE="docker-compose-dev.yml"
 
       test -s env/.env || {
-        echo "ERROR: env/.env not found"
+        echo "ERROR: env/.env missing"
         exit 1
       }
+
+      test -s "$COMPOSE" || {
+        echo "ERROR: Docker Compose missing"
+        exit 1
+      }
+
+      echo "Validating Compose..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
         config --quiet
 
-      echo "Pulling backend and web images..."
+      echo "Pulling application images..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
         pull app web
 
-      echo "Updating containers..."
+      echo "Updating services..."
 
       docker compose \
         --env-file env/.env \
         -f "$COMPOSE" \
-        up -d --remove-orphans \
-        --force-recreate
+        up -d --remove-orphans --force-recreate
 
-      echo "Checking deployment status..."
+      echo "Checking containers..."
 
       docker compose \
         --env-file env/.env \
@@ -315,4 +346,4 @@ deploy_dev:
 
       REMOTE_SCRIPT
 
-      echo "Development deployment completed."
+      echo "DEV deployment completed."

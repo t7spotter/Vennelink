@@ -1,0 +1,434 @@
+stages:
+  - build
+  - deploy
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: never
+
+variables:
+  DOCKER_HOST: "tcp://$RUNNER1"
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_BUILDKIT: "1"
+
+  DEV_APP_PATH: "/opt/app/backend/vennelink"
+
+  DEV_BACK_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_back:dev"
+  DEV_WEB_IMAGE: "reg2.sijaam.com/dev/backend/vennelink_web:dev"
+
+  PROD_BACK_REPO: "reg2.sijaam.com/backend/vennelink_back"
+  PROD_WEB_REPO: "reg2.sijaam.com/backend/vennelink_web"
+
+.docker_build:
+  stage: build
+
+  image: reg1.sijaam.com/devops/base/docker:dind
+
+  before_script:
+    - |
+      set -eu
+
+      echo "Logging in to REG1..."
+
+      printf '%s' "$REG1_PASS" |
+        docker login reg1.sijaam.com \
+          -u "$REG1_USER" \
+          --password-stdin
+
+      echo "Logging in to REG2..."
+
+      printf '%s' "$REG2_PASS" |
+        docker login reg2.sijaam.com \
+          -u "$REG2_USER" \
+          --password-stdin
+
+build_dev:
+  extends: .docker_build
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+
+  resource_group: vennelink-dev-pipeline
+
+  script:
+    - |
+      set -eu
+
+      DOCKERFILE="devops/dockerfile-dev"
+
+      if [ ! -f "$DOCKERFILE" ]; then
+        echo "ERROR: Missing Dockerfile: $DOCKERFILE"
+        exit 1
+      fi
+
+      echo "Building DEV Backend..."
+
+      docker build \
+        --pull \
+        --target backend \
+        -f "$DOCKERFILE" \
+        -t "$DEV_BACK_IMAGE" \
+        .
+
+      echo "Building DEV Frontend..."
+
+      docker build \
+        --pull \
+        --target web \
+        -f "$DOCKERFILE" \
+        -t "$DEV_WEB_IMAGE" \
+        .
+
+      echo "Pushing DEV Backend..."
+
+      docker push "$DEV_BACK_IMAGE"
+
+      echo "Pushing DEV Frontend..."
+
+      docker push "$DEV_WEB_IMAGE"
+
+      echo "Both DEV images pushed successfully."
+
+build_production:
+  extends: .docker_build
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+  script:
+    - |
+      set -eu
+
+      DOCKERFILE="devops/dockerfile-master"
+
+      if [ ! -f "$DOCKERFILE" ]; then
+        echo "ERROR: Missing Dockerfile: $DOCKERFILE"
+        exit 1
+      fi
+
+      BACK_IMAGE="${PROD_BACK_REPO}:${CI_PIPELINE_IID}"
+      WEB_IMAGE="${PROD_WEB_REPO}:${CI_PIPELINE_IID}"
+
+      echo "Building Production Backend..."
+
+      docker build \
+        --pull \
+        --target backend \
+        -f "$DOCKERFILE" \
+        -t "$BACK_IMAGE" \
+        .
+
+      echo "Building Production Frontend..."
+
+      docker build \
+        --pull \
+        --target web \
+        -f "$DOCKERFILE" \
+        -t "$WEB_IMAGE" \
+        .
+
+      echo "Pushing Production Backend..."
+
+      docker push "$BACK_IMAGE"
+
+      echo "Pushing Production Frontend..."
+
+      docker push "$WEB_IMAGE"
+
+      echo "Production images pushed:"
+      echo "$BACK_IMAGE"
+      echo "$WEB_IMAGE"
+
+      echo "Production build completed."
+      echo "No production deployment configured."
+
+deploy_dev:
+  stage: deploy
+
+  image: reg1.sijaam.com/devops/base/python:3.12-slim
+
+  needs:
+    - build_dev
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+
+  resource_group: vennelink-dev-pipeline
+
+  before_script:
+    - |
+      set -eu
+
+      echo "Installing SSH client..."
+
+      apt-get update
+
+      DEBIAN_FRONTEND=noninteractive apt-get install \
+        -y --no-install-recommends \
+        openssh-client ca-certificates
+
+      echo "Configuring SSH..."
+
+      mkdir -p "$HOME/.ssh"
+      chmod 700 "$HOME/.ssh"
+
+      if [ -f "$DEV_KEY" ]; then
+        cp "$DEV_KEY" "$HOME/.ssh/id_ed25519"
+      else
+        printf '%s\n' "$DEV_KEY" |
+          tr -d '\r' > "$HOME/.ssh/id_ed25519"
+      fi
+
+      chmod 600 "$HOME/.ssh/id_ed25519"
+
+      ssh-keygen -y \
+        -f "$HOME/.ssh/id_ed25519" > /dev/null
+
+      if [ -z "${DEV_KNOWN_HOSTS:-}" ]; then
+        echo "ERROR: DEV_KNOWN_HOSTS is missing"
+        exit 1
+      fi
+
+      if [ -f "$DEV_KNOWN_HOSTS" ]; then
+        cp "$DEV_KNOWN_HOSTS" \
+          "$HOME/.ssh/known_hosts"
+      else
+        printf '%s\n' "$DEV_KNOWN_HOSTS" \
+          > "$HOME/.ssh/known_hosts"
+      fi
+
+      chmod 600 "$HOME/.ssh/known_hosts"
+
+      echo "SSH configuration completed."
+
+
+  script:
+    - |
+      set -eu
+
+      REMOTE="${DEV_USER:-root}@${DEV}"
+      SSH_PORT="${DEV_SSH_PORT:-22}"
+      APP_PATH="$DEV_APP_PATH"
+
+      ssh_remote() {
+        ssh \
+          -i "$HOME/.ssh/id_ed25519" \
+          -p "$SSH_PORT" \
+          -o BatchMode=yes \
+          -o StrictHostKeyChecking=yes \
+          -o ConnectTimeout=15 \
+          "$REMOTE" "$@"
+      }
+
+      echo "================================"
+      echo "Starting DEV deployment"
+      echo "Server: $DEV"
+      echo "Directory: $APP_PATH"
+      echo "================================"
+
+      echo "Checking source Compose..."
+
+      test -s devops/docker-compose-dev.yml || {
+        echo "ERROR: Missing devops/docker-compose-dev.yml"
+        exit 1
+      }
+
+      echo "Checking SSH connection..."
+
+      ssh_remote "echo SSH_CONNECTED"
+
+      echo "Checking remote directories..."
+
+      ssh_remote "APP_PATH='$APP_PATH' sh -se" <<'REMOTE_CHECK'
+      set -eu
+
+      echo "Deployment path: $APP_PATH"
+
+      if [ ! -d "$APP_PATH" ]; then
+        echo "ERROR: Application directory does not exist:"
+        echo "$APP_PATH"
+        exit 1
+      fi
+
+      echo "Application directory exists."
+
+      if [ ! -d "$APP_PATH/env" ]; then
+        echo "ERROR: Environment directory is missing:"
+        echo "$APP_PATH/env"
+        exit 1
+      fi
+
+      echo "Environment directory exists."
+
+      if [ ! -s "$APP_PATH/env/.env" ]; then
+        echo "ERROR: Environment file is missing or empty:"
+        echo "$APP_PATH/env/.env"
+        exit 1
+      fi
+
+      echo "Environment file exists."
+
+      echo "Remote directory verification completed."
+
+      REMOTE_CHECK
+
+      echo "Copying Docker Compose only..."
+
+      scp \
+        -i "$HOME/.ssh/id_ed25519" \
+        -P "$SSH_PORT" \
+        -o BatchMode=yes \
+        -o StrictHostKeyChecking=yes \
+        devops/docker-compose-dev.yml \
+        "$REMOTE:$APP_PATH/docker-compose-dev.yml"
+
+      echo "Docker Compose uploaded successfully."
+
+      echo "Logging in to REG2 on DEV..."
+
+      printf '%s' "$REG2_PASS" |
+        ssh_remote \
+          "docker login reg2.sijaam.com -u '$REG2_USER' --password-stdin"
+
+      echo "Starting remote deployment..."
+
+      ssh_remote \
+        "APP_PATH='$APP_PATH' sh -se" <<'REMOTE_DEPLOY'
+      set -eu
+
+      cd "$APP_PATH"
+
+      COMPOSE="docker-compose-dev.yml"
+
+      echo "Current directory:"
+      pwd
+
+      echo "Checking required files..."
+
+      test -s "$COMPOSE"
+      test -s env/.env
+
+      echo "Validating Docker Compose..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        config --quiet
+
+      echo "Pulling application images..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        pull app web
+
+      echo "Starting PostgreSQL..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        up -d postgres
+
+      echo "Waiting for PostgreSQL..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        up -d --wait postgres
+
+      echo "Deploying Backend..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        up -d --no-deps --force-recreate app
+
+      echo "Waiting for Backend health..."
+
+      BACKEND_READY=0
+
+      for i in $(seq 1 30); do
+        STATUS=$(docker inspect \
+          --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+          vennelink_backend)
+
+        echo "Backend status: $STATUS"
+
+        if [ "$STATUS" = "healthy" ]; then
+          BACKEND_READY=1
+          break
+        fi
+
+        if [ "$STATUS" = "unhealthy" ] ||
+           [ "$STATUS" = "exited" ] ||
+           [ "$STATUS" = "dead" ]; then
+          break
+        fi
+
+        sleep 5
+      done
+
+      if [ "$BACKEND_READY" -ne 1 ]; then
+        echo "ERROR: Backend failed to become healthy"
+        docker logs vennelink_backend --tail 100
+        exit 1
+      fi
+
+      echo "Backend is healthy."
+
+      echo "Deploying Frontend..."
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        up -d --no-deps --force-recreate web
+
+      echo "Waiting for Frontend health..."
+
+      FRONTEND_READY=0
+
+      for i in $(seq 1 20); do
+        STATUS=$(docker inspect \
+          --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+          vennelink_frontend)
+
+        echo "Frontend status: $STATUS"
+
+        if [ "$STATUS" = "healthy" ]; then
+          FRONTEND_READY=1
+          break
+        fi
+
+        if [ "$STATUS" = "unhealthy" ] ||
+           [ "$STATUS" = "exited" ] ||
+           [ "$STATUS" = "dead" ]; then
+          break
+        fi
+
+        sleep 5
+      done
+
+      if [ "$FRONTEND_READY" -ne 1 ]; then
+        echo "ERROR: Frontend failed to become healthy"
+        docker logs vennelink_frontend --tail 100
+        exit 1
+      fi
+
+      echo "Frontend is healthy."
+
+      echo "================================"
+      echo "Final container status"
+      echo "================================"
+
+      docker compose \
+        --env-file env/.env \
+        -f "$COMPOSE" \
+        ps
+
+      echo "DEV deployment completed."
+
+      REMOTE_DEPLOY
+
+      echo "GitLab DEV deployment finished successfully."

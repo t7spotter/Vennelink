@@ -18,6 +18,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # True readiness for web's depends_on: gunicorn only binds after
+    # migrate + collectstatic finish, and web server-components need a
+    # reachable Django on their very first request (otherwise the landing
+    # page throws ApiError: backend unreachable until app is up).
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/webapi/csrf/', timeout=3)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
     ports:
       # Loopback only: the React web service is the public origin; Django is
       # reachable locally for ops (admin, API, debugging), never from outside.
@@ -31,7 +41,7 @@ services:
     # serves the whole site with working session cookies and CSRF.
     build:
       context: .
-      target: web
+      target: web-runtime
       # Next serializes rewrites at build time, so the backend target is
       # baked in; DJANGO_BACKEND_URL is also read at runtime for server
       # components (both must match this value unless rebuilt).
@@ -42,7 +52,16 @@ services:
       DJANGO_BACKEND_URL: ${DJANGO_BACKEND_URL:-http://app:8000}
     restart: unless-stopped
     depends_on:
-      - app
+      # Wait for Django to actually serve, not just to have started --
+      # starting with the container guarantees boot-time 500s otherwise.
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/', r => { process.exit(r.statusCode < 500 ? 0 : 1); }).on('error', () => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     ports:
       - "${WEB_PORT:-3000}:3000"
 

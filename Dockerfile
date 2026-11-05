@@ -35,14 +35,31 @@ ENV DJANGO_BACKEND_URL=$DJANGO_BACKEND_URL
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
+# output: "standalone" (next.config.ts) emits .next/standalone: server.js
+# plus only the node_modules Next traced as actually used at runtime.
 RUN npm run build
+
+# ---- Stage 2b: slim standalone web runtime ------------------------------
+# next start requires devDependencies + all sources in the image; the
+# standalone server needs just the traced files, so this final stage is a
+# bare Node with no npm and no build sources.
+FROM node:22-slim AS web-runtime
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+
+WORKDIR /app
+COPY --from=web /app/frontend/.next/standalone ./
+COPY --from=web /app/frontend/.next/static ./.next/static
+COPY --from=web /app/frontend/public ./public
 
 EXPOSE 3000
 # next.config.ts rewrites anything the React app doesn't handle to Django,
 # so this one port serves the whole same-origin site (sessions, CSRF).
-CMD ["npx", "next", "start"]
+CMD ["node", "server.js"]
 
-# ---- Stage 2: python runtime ------------------------------------------
+# ---- Stage 3: Python runtime ------------------------------------------
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

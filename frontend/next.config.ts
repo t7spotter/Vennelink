@@ -12,6 +12,10 @@ import type { NextConfig } from "next";
 const DJANGO = process.env.DJANGO_BACKEND_URL || "http://127.0.0.1:8000";
 
 const nextConfig: NextConfig = {
+  // Produce .next/standalone in production builds: a self-regarding minimal
+  // server (server.js + traced node_modules) that Docker copies into a slim
+  // node runtime image -- no devDependencies and no npm needed to START.
+  output: "standalone",
   // The repo root has its own package-lock.json for the legacy Tailwind
   // CLI; lock workspace tracing to this directory so Next uses the
   // frontend lockfile.

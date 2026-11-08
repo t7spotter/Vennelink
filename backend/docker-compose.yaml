@@ -1,0 +1,68 @@
+# Backend stack: Django app + its PostgreSQL. The frontend (React/Next) has
+# its own stack in ../frontend/compose.yaml; both attach to the shared
+# "vennelink" network so the two stacks interoperate with
+# DJANGO_BACKEND_URL=http://app:8000 (or wherever the backend runs).
+
+services:
+  postgres:
+    image: postgres:14.4
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      # Loopback only: lets local `make test` / runserver reach the same
+      # Postgres the stack uses. Never exposed beyond the machine itself.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - vennelink
+
+  app:
+    build: .
+    env_file: .env
+    # Point Django's DB object at the Postgres service defined above,
+    # regardless of what the host machine's DB_* settings are.
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-shortener}
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # True readiness for the frontend's startup: gunicorn only binds after
+    # migrate + collectstatic finish, and Next.js server components need a
+    # reachable Django on their first request.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/webapi/csrf/', timeout=3)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    ports:
+      # Loopback only: the React service is the public origin; Django is
+      # reachable locally for ops (admin, API, debugging), never from outside.
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    volumes:
+      - static:/app/staticfiles
+    networks:
+      - vennelink
+
+volumes:
+  pgdata:
+  static:
+
+# Explicit name so ../frontend's stack can join the same network.
+# Both stacks get: backend = "app", frontend = "web" on vennelink:8000.
+networks:
+  vennelink:
+    name: vennelink

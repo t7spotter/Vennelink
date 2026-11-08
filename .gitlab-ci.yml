@@ -56,30 +56,24 @@ build_dev:
     - |
       set -eu
 
-      DOCKERFILE="devops/dockerfile-dev"
-
-      if [ ! -f "$DOCKERFILE" ]; then
-        echo "ERROR: Missing Dockerfile: $DOCKERFILE"
-        exit 1
-      fi
-
-      echo "Building DEV Backend..."
+      echo "Building DEV Backend (backend/Dockerfile)..."
 
       docker build \
         --pull \
-        --target backend \
-        -f "$DOCKERFILE" \
+        --platform linux/amd64 \
+        -f backend/Dockerfile \
         -t "$DEV_BACK_IMAGE" \
-        .
+        backend/
 
-      echo "Building DEV Frontend..."
+      echo "Building DEV Frontend (frontend/Dockerfile)..."
 
       docker build \
         --pull \
-        --target web \
-        -f "$DOCKERFILE" \
+        --platform linux/amd64 \
+        --target web-runtime \
+        -f frontend/Dockerfile \
         -t "$DEV_WEB_IMAGE" \
-        .
+        frontend/
 
       echo "Pushing DEV Backend..."
 
@@ -101,33 +95,27 @@ build_production:
     - |
       set -eu
 
-      DOCKERFILE="devops/dockerfile-master"
-
-      if [ ! -f "$DOCKERFILE" ]; then
-        echo "ERROR: Missing Dockerfile: $DOCKERFILE"
-        exit 1
-      fi
-
       BACK_IMAGE="${PROD_BACK_REPO}:${CI_PIPELINE_IID}"
       WEB_IMAGE="${PROD_WEB_REPO}:${CI_PIPELINE_IID}"
 
-      echo "Building Production Backend..."
+      echo "Building Production Backend (backend/Dockerfile)..."
 
       docker build \
         --pull \
-        --target backend \
-        -f "$DOCKERFILE" \
+        --platform linux/amd64 \
+        -f backend/Dockerfile \
         -t "$BACK_IMAGE" \
-        .
+        backend/
 
-      echo "Building Production Frontend..."
+      echo "Building Production Frontend (frontend/Dockerfile)..."
 
       docker build \
         --pull \
-        --target web \
-        -f "$DOCKERFILE" \
+        --platform linux/amd64 \
+        --target web-runtime \
+        -f frontend/Dockerfile \
         -t "$WEB_IMAGE" \
-        .
+        frontend/
 
       echo "Pushing Production Backend..."
 

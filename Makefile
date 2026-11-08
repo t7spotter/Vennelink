@@ -1,29 +1,40 @@
-# Common developer tasks. Uses the virtualenv in .venv if present.
+# Common developer tasks. Monorepo layout: backend/ (Django) and frontend/
+# (Next.js). Run most targets from the repo root; they cd where they need to.
 
-VENV ?= .venv
-PYTHON = $(VENV)/bin/python
-PIP = $(VENV)/bin/pip
+# Backend virtualenv (create once with: make deps)
+VENV = backend/.venv
+PY = cd backend && $(VENV)/bin/python
+PIP = cd backend && $(VENV)/bin/pip
 
-.PHONY: deps migrate test css check server front
+.PHONY: deps migrate test check server front css check-front
 
 deps:
-	$(PIP) install -r requirements-dev.txt
+	cd backend && $(VENV)/bin/pip install -r requirements-dev.txt
 
 migrate:
-	$(PYTHON) manage.py migrate
+	cd backend && .venv/bin/python manage.py migrate
 
 server:
-	$(PYTHON) manage.py runserver
+	cd backend && .venv/bin/python manage.py runserver
 
 front:
 	cd frontend && npm run dev
 
 test:
-	$(PYTHON) -m pytest tests/
+	cd backend && .venv/bin/python -m pytest tests/
 
 check:
-	$(PYTHON) manage.py check
+	cd backend && .venv/bin/python manage.py check
 
+# Frontend typecheck+lint
+check-front:
+	cd frontend && npm run typecheck && npm run lint
+
+# Compile Tailwind for the server-side templates (backend/package.json
+# provides @tailwindcss/cli):
 css:
-	./bin/tailwindcss -i static/css/src/input.css -o static/css/app.css --minify
-	# Or with Node: npm run build-css
+	cd backend && npm install --no-audit --no-fund && npm run build-css
+
+# Test in the real containers (authoritative):
+docker-test:
+	docker compose -f backend/docker-compose.yaml exec -T app python -m pytest tests/ -q

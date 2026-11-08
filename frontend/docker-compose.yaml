@@ -1,0 +1,33 @@
+# Frontend stack: React (Next.js) public UI. It expects a running backend
+# stack (../backend/compose.yaml) on the shared "vennelink" network, serving
+# Django at http://app:8000 — start the backend stack first.
+
+services:
+  web:
+    build:
+      context: .
+      target: web-runtime
+      # Next serializes rewrites at build time, so the backend target is
+      # baked in; DJANGO_BACKEND_URL is also read at runtime for server
+      # components (both must match this value unless rebuilt).
+      args:
+        DJANGO_BACKEND_URL: ${DJANGO_BACKEND_URL:-http://app:8000}
+    environment:
+      # Server components + the same-origin rewrite proxy target Django.
+      DJANGO_BACKEND_URL: ${DJANGO_BACKEND_URL:-http://app:8000}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/', r => { process.exit(r.statusCode < 500 ? 0 : 1); }).on('error', () => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    networks:
+      - vennelink
+
+# Same network as the backend stack, so "app" resolves from here.
+networks:
+  vennelink:
+    name: vennelink

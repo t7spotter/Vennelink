@@ -119,14 +119,20 @@ deployment, and no unnecessary infrastructure.
 ## Project layout
 
 ```
-config/       settings, URLs, WSGI, the /api/ URL module
-accounts/     registration, login/logout, profile, password flows
-links/        Link model, forms, dashboard views, public redirect, REST API
-analytics/    ClickEvent model, click recording, aggregation queries
-frontend/     React app: Next.js App Router pages + components + webapi client
-templates/    Django-rendered fallback pages (unlock, errors, admin, password flows)
-static/       css (source + built), js, vendored vendor/ libraries
-tests/        pytest suite
+backend/       Django app: settings, URLs, WSGI, the /api/ URL module
+  Dockerfile   backend image (Tailwind CSS step + Python runtime)
+  docker-compose.yaml   backend stack: app + postgres, shared "vennelink" network
+  config/      settings, URLs, WSGI, the /api/ URL module
+  accounts/    registration, login/logout, profile, password flows
+  links/       Link model, forms, dashboard views, public redirect, REST API
+  analytics/   ClickEvent model, click recording, aggregation queries
+  templates/   Django-rendered fallback pages (unlock, errors, admin, password flows)
+  static/      css (source + built), js, vendored vendor/ libraries
+  tests/       pytest suite
+frontend/      React app: Next.js App Router pages + components + webapi client
+  Dockerfile   frontend image (build -> standalone web-runtime)
+  docker-compose.yaml   frontend stack: web (expects the backend stack up)
+README.md      this file
 ```
 The compiled `static/css/app.css` is committed, so local development and
 Docker deploys don't require Node unless you change the templates/CSS source.
@@ -136,9 +142,10 @@ Docker deploys don't require Node unless you change the templates/CSS source.
 The React app lives in `frontend/` and is the user-facing UI. It talks to
 Django over the same origin:
 
-- In development, `npm run dev` serves Next.js on port 3000 — and the
-  Compose `web` service runs the same setup in production (`npm run
-  build` + `next start`, built by the Docker `web` stage). A fallback
+- In development, `npm run dev` serves Next.js on port 3000 — in
+  production the Compose `web` service runs the compiled app (`npm run
+  build` compiled into the standalone output, served by `node
+  server.js` — the Docker `web-runtime` stage). A fallback
   rewrite in `frontend/next.config.ts` sends every unmatched path to
   Django (`DJANGO_BACKEND_URL`, `http://app:8000` in Docker) — links, QR
   SVGs, CSV export, admin, and the unlock flow are still served by
@@ -176,6 +183,7 @@ Django over the same origin:
 3. Create a virtualenv and install dependencies:
 
    ```bash
+   cd backend
    python3 -m venv .venv
    .venv/bin/pip install -r requirements.txt
    ```
@@ -187,24 +195,23 @@ Django over the same origin:
    # edit DB_NAME / DB_USER / DB_PASSWORD as needed (defaults: shortener/postgres/postgres)
    ```
 
-5. Migrate and run Django:
+5. Migrate and run Django (all from `backend/`):
 
    ```bash
    .venv/bin/python manage.py migrate
    .venv/bin/python manage.py runserver   # API + fallback pages on :8000
    ```
 
-6. Run the React frontend:
+6. Run the React frontend (from `frontend/`):
 
    ```bash
-   cd frontend
    npm install
    npm run dev          # UI on http://localhost:3000, proxies to Django
    ```
 
    Visit http://localhost:3000. Register from the landing page, then use the
-   dashboard. See also `DEBUG=true` in `.env` for local error pages. Quality
-   checks for the frontend: `npm run typecheck`, `npm run lint`,
+   dashboard. See also `DEBUG=true` in `backend/.env` for local error pages.
+   Quality checks for the frontend: `npm run typecheck`, `npm run lint`,
    `npm run build` (all inside `frontend/`).
 
 7. Static files for the Django-rendered fallback pages are provided pre-built
@@ -212,7 +219,7 @@ Django over the same origin:
    tooling. To rebuild that CSS after template changes:
 
    ```bash
-   # with NodeJS installed:
+   # in backend/ — with NodeJS installed:
    npm install && npm run build-css
    # or with the standalone Tailwind CLI (download for your OS from
    # github.com/tailwindlabs/tailwindcss/releases, e.g. tailwindcss-macos-arm64):
@@ -226,7 +233,6 @@ Django over the same origin:
    ```bash
    .venv/bin/python manage.py createsuperuser
    ```
-
 ## Deploying on your own server
 
 The frontend ships in Docker: the `web` service builds the React app
@@ -252,10 +258,13 @@ there is no CDN or global platform involved.
 ### 2. Environment
 
 ```bash
-scp .env.example server:/srv/vennelink/.env
+scp backend/.env.example server:/srv/vennelink/backend/.env
 ```
 
-Edit `.env` on the server:
+(Or clone the repo on the server; the example files are
+`backend/.env.example` and `frontend/.env.example`.)
+
+Edit `backend/.env` on the server:
 - `SECRET_KEY` — generate: `python3 -c "import secrets; print(secrets.token_urlsafe(50))"`
 - `ALLOWED_HOSTS=links.example.com`
 - `CSRF_TRUSTED_ORIGINS=https://links.example.com`
@@ -266,8 +275,12 @@ Edit `.env` on the server:
 
 ### 3. Start
 
+The stack is split into two compose files sharing the `vennelink` Docker
+network — start the backend first (the frontend expects it):
+
 ```bash
-docker compose up -d --build
+docker compose -f backend/docker-compose.yaml up -d --build
+docker compose -f frontend/docker-compose.yaml up -d --build
 ```
 
 The `app` container runs migrations, collects static files, then serves
@@ -324,7 +337,7 @@ nothing: no code-level coupling, no central accounts, no shared short codes.
 ### 6. Migrations
 
 ```bash
-docker compose exec app python manage.py migrate
+docker compose -f backend/docker-compose.yaml exec app python manage.py migrate
 ```
 
 (This runs automatically on container start; run it manually after changing
@@ -334,22 +347,23 @@ models in a customized install.)
 
 ```bash
 # Backup: dumps the whole DB to a timestamped file on the host
-docker compose exec postgres pg_dump -U postgres shortener > backup_$(date +%F).sql
+docker compose -f backend/docker-compose.yaml exec postgres \
+  pg_dump -U postgres shortener > backup_$(date +%F).sql
 
 # Restore into an empty database
-docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS shortener;"
-docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE shortener;"
-docker compose exec -T postgres psql -U postgres shortener < backup_2026-10-18.sql
+docker compose -f backend/docker-compose.yaml exec -T postgres \
+  psql -U postgres -c "DROP DATABASE IF EXISTS shortener;"
+docker compose -f backend/docker-compose.yaml exec -T postgres \
+  psql -U postgres -c "CREATE DATABASE shortener;"
+docker compose -f backend/docker-compose.yaml exec -T postgres \
+  psql -U postgres shortener < backup_2026-10-18.sql
 
 # Off-server copy (recommended)
 scp server:/srv/vennelink/backup_2026-10-18.sql ./
 ```
 
-Also back up `.env` (contains `SECRET_KEY` — losing it invalidates sessions
-and password reset tokens) or keep it in your secrets manager.
-
-Also back up `.env` (contains `SECRET_KEY` — losing it invalidates sessions
-and password reset tokens) or keep it in your secrets manager.
+Also back up `backend/.env` (contains `SECRET_KEY` — losing it invalidates
+sessions and password reset tokens) or keep it in your secrets manager.
 
 ### Link health checker (opt-in)
 
@@ -375,7 +389,7 @@ passes:
 0 3 * * * cd /srv/vennelink && .venv/bin/python manage.py purge_trash --days 30
 ```
 
-(or `docker compose run --rm app python manage.py purge_trash --days 30`).
+(or `docker compose -f backend/docker-compose.yaml run --rm app python manage.py purge_trash --days 30`).
 
 ### Weekly digest email
 
@@ -389,7 +403,7 @@ Cron (Mondays 09:00):
 0 9 * * 1 cd /srv/vennelink && .venv/bin/python manage.py send_digest
 ```
 
-(or `docker compose run --rm app python manage.py send_digest`).
+(or `docker compose -f backend/docker-compose.yaml run --rm app python manage.py send_digest`).
 
 Email delivery uses the standard `EMAIL_*` environment variables (see the
 table above); the default console backend prints the message to stdout so
@@ -406,9 +420,10 @@ attempts the payload is dropped so the outbox can never grow unbounded.
 
 ### 8. Updating dependencies
 
-Pinned in `requirements.txt`. To update: bump a pin, run
-`.venv/bin/pip install -r requirements-dev.txt`, run the test suite, then
-commit the new pins. Frontend libraries are vendored under `static/vendor/`
+Pinned in `backend/requirements.txt`. To update: bump a pin, run
+`.venv/bin/pip install -r requirements-dev.txt` inside `backend/`, run the
+test suite, then commit the new pins. Frontend libraries are vendored under
+`backend/static/vendor/`
 (record versions in the commit message; sources: htmx from
 unpkg.com/htmx.org, Chart.js from cdn.jsdelivr.net, Lucide from
 unpkg.com/lucide.org/), Flatpickr from npmjs.com/package/flatpickr (4.6.13).
@@ -446,9 +461,9 @@ unpkg.com/lucide.org/), Flatpickr from npmjs.com/package/flatpickr (4.6.13).
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Optional Google sign-in (see "Google sign-in" below); both empty keeps the buttons hidden |
 | `LANDING_ENABLED` | `false` turns `/` into an app-only doorway (dashboard/login, no marketing page) |
 | `APIWARDEN_TOKEN` | Optional shared token gating `/api/docs/` (unset = public docs) |
-| `POSTGRES_DB`, `POSTGRES_PASSWORD` | Passed to the Postgres container; compose.yaml maps the same values into the app's `DB_NAME` / `DB_PASSWORD` (host overridden to the `postgres` service) |
-| `GUNICORN_WORKERS`, `APP_PORT` | Serving knobs (`APP_PORT` is `127.0.0.1`-bound) |
-| `WEB_PORT` | Host port for the public React origin (default 3000) |
+| `POSTGRES_DB`, `POSTGRES_PASSWORD` | Passed to the Postgres container; `backend/docker-compose.yaml` maps the same values into the app's `DB_NAME` / `DB_PASSWORD` (host overridden to the `postgres` service) |
+| `GUNICORN_WORKERS`, `APP_PORT` | Serving knobs (`APP_PORT` is `127.0.0.1`-bound; `backend/.env.example`) |
+| `DJANGO_BACKEND_URL`, `WEB_PORT` | Frontend stack: where `web` finds Django and the host port for the public React origin (`frontend/.env.example`) |
 
 ## API
 
@@ -491,10 +506,11 @@ spec is regenerated on container start — edit the API and the docs follow.
 After changing API code locally, refresh the spec with:
 
 ```bash
+# from backend/
 .venv/bin/python manage.py spectacular --file api-docs/vennelink/openapi.yaml
 ```
 
-Optional: set `APIWARDEN_TOKEN` in `.env` to require a shared token on every
+Optional: set `APIWARDEN_TOKEN` in `backend/.env` to require a shared token on every
 request to `/api/docs/`; unset, the docs portal is public.
 
 | Method | Path | Description |
@@ -520,7 +536,7 @@ curl -H "Authorization: Bearer $KEY" https://links.example.com/api/v1/links/ \
 ```
 
 (Operators can also mint a key directly with
-`.venv/bin/python manage.py drf_create_token alice`.)
+`.venv/bin/python manage.py drf_create_token alice`, from `backend/`.)
 
 ## MCP server (agent access)
 
@@ -616,7 +632,11 @@ not DB-level attackers.
 ## Tests
 
 ```bash
+# from backend/
 .venv/bin/python -m pytest tests/
+
+# or inside the running Docker stack (from the repo root):
+make docker-test
 ```
 
 pytest-django creates and destroys a dedicated `test_shortener` database.
